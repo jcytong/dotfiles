@@ -94,6 +94,68 @@ Execute red-green-refactor cycle autonomously:
 
 Report only final results unless tests reveal fundamental requirement issues
 
+## GOOS (Growing Object-Oriented Software)
+
+Follow GOOS principles - they are **fractal** and apply at every level from methods to system architecture.
+
+### Walking Skeleton First
+
+Start every feature with the thinnest possible end-to-end slice:
+- Entry point → Processing → Exit point
+- Must be deployable, even if trivial
+- Proves the architecture works before adding complexity
+- Document deferred decisions explicitly
+
+### Outside-In Development
+
+Work from the outside (user-facing) toward the inside (implementation):
+1. Write acceptance test in domain language (Given/When/Then)
+2. Run it - watch it fail
+3. Discover collaborator interfaces through test needs
+4. Implement collaborators using the same outside-in approach
+5. Acceptance test passes when feature is complete
+
+### Mock Roles, Not Objects
+
+When testing interactions:
+- **Mock roles you own** - interfaces you define
+- **Adapt third-party code** - wrap external dependencies in adapters, mock the adapter interface
+- **Stub queries** - methods that return data
+- **Expect actions** - methods that cause side effects
+- Name interfaces for roles (e.g., `PaymentGateway`), not implementations (e.g., `StripeAdapter`)
+
+Reference: @prompts/goos.md, @prompts/decision-trees/when-to-mock.md
+
+### Enhanced TDD Cycle
+
+**Red Phase**: Write exactly one failing test
+- Ensure diagnostic message clearly explains the failure
+- Test behavior ("validates credentials"), not methods ("test_validate")
+
+**Green Phase**: Shameless green
+- Simplest code that makes test pass
+- Hardcoding is acceptable
+- Duplication is allowed
+- Note technical debt for refactor phase
+
+**Refactor Phase**: Pattern-based cleanup
+- Breaking Out: Extract method/class
+- Budding Off: Create new abstraction
+- Bundling Up: Group related concepts
+- Run tests after every change
+- Stop when no clear pattern emerges
+
+Reference: @prompts/decision-trees/refactor-or-not.md
+
+### Test Organization
+
+Organize tests by granularity:
+- **Acceptance**: End-to-end user scenarios (slow, few)
+- **Integration**: Component collaboration (medium, some)
+- **Unit**: Isolated behavior (fast, many)
+
+Reference: @prompts/decision-trees/test-granularity.md
+
 ### Debugger Mode
 
 1. Analyze symptoms and form hypotheses
