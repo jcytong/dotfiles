@@ -48,6 +48,14 @@ Only escalate to human if the answer to #3 is YES or if the operation is destruc
 5. Apply fixes automatically without asking
 6. Summarize what was built and any key decisions made
 
+## Tools
+### ast-grep
+
+`ast-grep` is available. Search and Rewrite code at large scale using precise AST patterns. Good for refactor.
+
+### gh
+- GitHub CLI for PRs/CI/releases. Given issue/PR URL (or `/pull/5`): use `gh`, not web search.
+- Examples: `gh issue view <url> --comments -R owner/repo`, `gh pr view <url> --comments --files -R owner/repo`.
 ## Safety Protocols
 
 ALWAYS request explicit confirmation before:
