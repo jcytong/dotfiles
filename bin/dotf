@@ -1,0 +1,36 @@
+#!/bin/bash
+set -e
+
+DOTFILES_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+FILES_DIR="$DOTFILES_DIR/files/home"
+
+link_files() {
+  find "$FILES_DIR" -type f | while read -r file; do
+    relative="${file#$FILES_DIR/}"
+    target="$HOME/$relative"
+
+    mkdir -p "$(dirname "$target")"
+
+    if [ -L "$target" ]; then
+      rm "$target"
+    elif [ -e "$target" ]; then
+      echo "Skipping $relative (file exists and is not a symlink)"
+      continue
+    fi
+
+    ln -s "$file" "$target"
+    echo "Linked $relative"
+  done
+}
+
+case "${1:-link}" in
+  link)
+    link_files
+    ;;
+  *)
+    echo "Usage: dotf [link]"
+    echo ""
+    echo "Commands:"
+    echo "  link    Symlink files from files/home/ to ~/ (default)"
+    ;;
+esac
