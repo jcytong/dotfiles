@@ -1,4 +1,9 @@
-# /goos-review - GOOS Principles Review
+---
+name: goos-review
+description: Review code files against GOOS principles
+---
+
+# GOOS Review
 
 Review code files against Growing Object-Oriented Software principles.
 
@@ -17,7 +22,7 @@ Review code files against Growing Object-Oriented Software principles.
 /goos-review src/**/*.ts
 ```
 
-## What It Checks
+## What to Check
 
 ### 1. Mock Roles Not Objects
 
@@ -32,8 +37,6 @@ Review code files against Growing Object-Oriented Software principles.
 - Mocking role interfaces you define (e.g., `PaymentGateway`)
 - Adapters wrapping third-party code
 - Stub queries, expect actions
-
-Reference: @prompts/decision-trees/when-to-mock.md
 
 ### 2. Tell Don't Ask
 
@@ -125,8 +128,6 @@ def test_applies_loyalty_discount():  # Scenario
 **Suggested**:
 [Code snippet showing fix]
 
-**Reference**: @prompts/goos.md#section
-
 ---
 
 ### Summary
@@ -155,12 +156,6 @@ def test_applies_loyalty_discount():  # Scenario
 3. Identify violations with specific line numbers
 4. Suggest concrete improvements
 5. Prioritize findings by impact
-
-## References
-
-- @prompts/goos.md - Full GOOS principles reference
-- @prompts/decision-trees/when-to-mock.md - Mocking decisions
-- @prompts/decision-trees/refactor-or-not.md - Refactoring guidance
 
 ## Notes
 

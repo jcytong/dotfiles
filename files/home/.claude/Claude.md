@@ -124,8 +124,6 @@ When testing interactions:
 - **Expect actions** - methods that cause side effects
 - Name interfaces for roles (e.g., `PaymentGateway`), not implementations (e.g., `StripeAdapter`)
 
-Reference: @prompts/goos.md, @prompts/decision-trees/when-to-mock.md
-
 ### Enhanced TDD Cycle
 
 **Red Phase**: Write exactly one failing test
@@ -144,8 +142,6 @@ Reference: @prompts/goos.md, @prompts/decision-trees/when-to-mock.md
 - Bundling Up: Group related concepts
 - Run tests after every change
 - Stop when no clear pattern emerges
-
-Reference: @prompts/decision-trees/refactor-or-not.md
 
 ### Test Organization
 

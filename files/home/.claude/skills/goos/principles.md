@@ -75,6 +75,8 @@ GOOS principles apply at every level of abstraction:
 - **Stub queries**: Methods that return data (no side effects)
 - **Expect actions**: Methods that cause observable effects
 
+See [when-to-mock.md](when-to-mock.md) for decision tree.
+
 ---
 
 ### 4. Tell, Don't Ask
@@ -167,6 +169,8 @@ order.customer.charge(order.total)  # Customer decides if allowed
 - Stop when no clear pattern emerges
 - Rule of Three: Wait for 3 examples before abstracting
 
+See [refactor-or-not.md](refactor-or-not.md) for decision tree.
+
 ---
 
 ## Test Organization
@@ -187,6 +191,8 @@ order.customer.charge(order.total)  # Customer decides if allowed
 - All dependencies stubbed/mocked
 - Fast to run, many in number
 - Drive implementation details
+
+See [test-granularity.md](test-granularity.md) for decision tree.
 
 ---
 
