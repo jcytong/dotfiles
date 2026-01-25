@@ -1,0 +1,23 @@
+[user]
+	name = Johnny Tong
+	email = hi@johnnytong.com
+[color]
+	status = auto
+	diff = auto
+	branch = auto
+[alias]
+	st = status
+	ci = commit
+	co = checkout
+	br = branch
+	unstage = reset HEAD --
+	fp = "!git fetch -p; git pull"
+	wip = "!git add --all; git ci -m WIP"
+  wt = worktree
+	unwip = "!git reset --soft HEAD~1; git unstage"
+[core]
+	legacyheaders = false
+	editor = vim
+	autocrlf = input
+[init]
+	defaultBranch = master
