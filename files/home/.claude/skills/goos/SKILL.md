@@ -32,7 +32,7 @@ Start a new feature with the thinnest possible end-to-end slice.
 - Minimal implementation
 - List of deferred items
 
-See [workflow.md](workflow.md) for full example.
+See [workflow.md](references/workflow.md) for full example.
 
 ---
 
@@ -48,7 +48,7 @@ Develop a feature working from user-facing layer inward.
 5. Use `/tdd` to implement each behavior
 6. Acceptance test passes when complete
 
-See [principles.md](principles.md#outside-in-development) for details.
+See [principles.md](references/1-principles.md#outside-in-development) for details.
 
 ---
 
@@ -72,14 +72,15 @@ Discover interfaces for an object's collaborators.
 **Test Strategy**: Stub | Expect for each method
 ```
 
-See [when-to-mock.md](when-to-mock.md) for decision guidance.
+See [when-to-mock.md](references/when-to-mock.md) for decision guidance.
 
 ---
 
 ## References
 
-- [principles.md](principles.md) - Core GOOS principles
-- [workflow.md](workflow.md) - Step-by-step example
-- [when-to-mock.md](when-to-mock.md) - Mocking decisions
-- [test-granularity.md](test-granularity.md) - Choosing test level
-- [refactor-or-not.md](refactor-or-not.md) - When to refactor
+- [principles.md](references/1-principles.md) - Core GOOS principles
+- [what-is-goos.md](references/0-what-is-goos.md) - What is GOOS
+- [workflow.md](references/workflow.md) - Step-by-step example
+- [when-to-mock.md](references/when-to-mock.md) - Mocking decisions
+- [test-granularity.md](references/test-granularity.md) - Choosing test level
+- [refactor-or-not.md](references/refactor-or-not.md) - When to refactor

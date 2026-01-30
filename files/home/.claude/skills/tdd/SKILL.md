@@ -198,7 +198,7 @@ If stuck, revert and try a smaller step.
 
 ## References
 
-For decision guidance, see the goos skill reference files:
-- When to refactor: `/goos` skill's refactor-or-not.md
-- Test levels: `/goos` skill's test-granularity.md
-- What to mock: `/goos` skill's when-to-mock.md
+For decision guidance, see:
+- When to refactor: [refactor-or-not.md](references/refactor-or-not.md)
+- Test levels: [test-granularity.md](references/test-granularity.md)
+- What to mock: [when-to-mock.md](references/when-to-mock.md)
