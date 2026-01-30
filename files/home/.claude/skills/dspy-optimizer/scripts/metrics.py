@@ -1,0 +1,240 @@
+"""
+Portable metric functions for DSPy classification pipelines.
+
+Three categories:
+  1. GEPA feedback metrics  - return dspy.Prediction(score=, feedback=)
+  2. Simple per-example metrics - return float (for non-GEPA optimizers)
+  3. Aggregate evaluation     - compute precision/recall/F1 from predictions
+
+Usage:
+    from metrics import (
+        make_gepa_metric,
+        make_simple_metric,
+        evaluate_predictions,
+    )
+"""
+
+from dataclasses import dataclass
+from typing import Any, Callable, Dict, List, Optional
+
+import dspy
+
+
+# ---------------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------------
+
+@dataclass
+class MetricWeights:
+    """
+    Score weights for the four classification outcomes.
+
+    Adjust these to shift the decision boundary:
+      - Recall-priority:  tp=1.0, fn=0.0, tn=0.8, fp=0.2
+      - Precision-priority: tp=1.0, fn=0.3, tn=0.8, fp=0.0
+      - Balanced:          tp=1.0, fn=0.0, tn=1.0, fp=0.0
+    """
+    tp: float = 1.0
+    fn: float = 0.0
+    tn: float = 0.8
+    fp: float = 0.2
+
+
+RECALL_WEIGHTS = MetricWeights(tp=1.0, fn=0.0, tn=0.8, fp=0.2)
+PRECISION_WEIGHTS = MetricWeights(tp=1.0, fn=0.3, tn=0.8, fp=0.0)
+BALANCED_WEIGHTS = MetricWeights(tp=1.0, fn=0.0, tn=1.0, fp=0.0)
+
+
+# ---------------------------------------------------------------------------
+# 1. GEPA Feedback Metrics
+# ---------------------------------------------------------------------------
+
+def make_gepa_metric(
+    positive_label: str = "APPROVED",
+    negative_label: str = "REJECTED",
+    label_attr: str = "status",
+    weights: MetricWeights = RECALL_WEIGHTS,
+    input_preview_attr: Optional[str] = None,
+    input_preview_max_chars: int = 3000,
+) -> Callable:
+    """
+    Factory that returns a GEPA-compatible metric function.
+
+    The returned function accepts 5 args (gold, pred, trace, pred_name, pred_trace)
+    and returns dspy.Prediction(score=float, feedback=str).
+
+    Args:
+        positive_label: Label value for the positive class.
+        negative_label: Label value for the negative class.
+        label_attr: Attribute name on the Example/Prediction containing the label.
+        weights: Score weights for TP/FN/TN/FP outcomes.
+        input_preview_attr: Optional attribute name to include a preview of the
+                            input in failure feedback (e.g., "work_experience").
+        input_preview_max_chars: Max characters for the input preview.
+
+    Returns:
+        A GEPA-compatible metric function.
+    """
+
+    def metric(gold, pred, trace=None, pred_name=None, pred_trace=None):
+        gold_label = getattr(gold, label_attr, "").upper()
+        pred_label = getattr(pred, label_attr, "").upper()
+        pred_reasoning = getattr(pred, "reasoning", "No reasoning provided")
+
+        is_positive = gold_label == positive_label.upper()
+        pred_positive = pred_label == positive_label.upper()
+
+        if is_positive and pred_positive:
+            score = weights.tp
+            feedback = (
+                f"TRUE POSITIVE - Correctly classified as {positive_label}.\n"
+                f"Reasoning: {pred_reasoning}\n"
+            )
+        elif is_positive and not pred_positive:
+            score = weights.fn
+            feedback = (
+                f"FALSE NEGATIVE (CRITICAL) - Missed a {positive_label} example!\n"
+                f"Model Reasoning: {pred_reasoning}\n"
+                f"CRITIQUE: The reasoning failed to identify positive signals.\n"
+            )
+            if input_preview_attr:
+                preview = _get_preview(gold, input_preview_attr, input_preview_max_chars)
+                if preview:
+                    feedback += f"Input Preview: {preview}\n"
+        elif not is_positive and not pred_positive:
+            score = weights.tn
+            feedback = (
+                f"TRUE NEGATIVE - Correctly classified as {negative_label}.\n"
+                f"Reasoning: {pred_reasoning}\n"
+            )
+        else:
+            score = weights.fp
+            feedback = (
+                f"FALSE POSITIVE - Incorrectly classified as {positive_label}.\n"
+                f"Model Reasoning: {pred_reasoning}\n"
+                f"CRITIQUE: Incorrectly identified positive signals.\n"
+            )
+
+        # Append ground-truth reasoning when available
+        gold_reasoning = getattr(gold, "reasoning", "")
+        if gold_reasoning:
+            feedback += (
+                f"\nGround truth reasoning (learn from this): {gold_reasoning}"
+            )
+
+        return dspy.Prediction(score=score, feedback=feedback)
+
+    return metric
+
+
+# ---------------------------------------------------------------------------
+# 2. Simple Per-Example Metrics (for non-GEPA optimizers)
+# ---------------------------------------------------------------------------
+
+def make_simple_metric(
+    positive_label: str = "APPROVED",
+    negative_label: str = "REJECTED",
+    label_attr: str = "status",
+    weights: MetricWeights = RECALL_WEIGHTS,
+) -> Callable:
+    """
+    Factory that returns a simple float metric for non-GEPA optimizers.
+
+    The returned function accepts (example, pred, trace) and returns a float.
+    """
+
+    def metric(example, pred, trace=None):
+        gold_label = getattr(example, label_attr, "").upper()
+        pred_label = getattr(pred, label_attr, "").upper()
+
+        is_positive = gold_label == positive_label.upper()
+        pred_positive = pred_label == positive_label.upper()
+
+        if is_positive and pred_positive:
+            return weights.tp
+        elif is_positive and not pred_positive:
+            return weights.fn
+        elif not is_positive and not pred_positive:
+            return weights.tn
+        else:
+            return weights.fp
+
+    return metric
+
+
+def make_accuracy_metric(label_attr: str = "status") -> Callable:
+    """Simple binary accuracy metric: 1.0 if labels match, 0.0 otherwise."""
+
+    def metric(example, pred, trace=None):
+        return float(
+            getattr(example, label_attr, "").lower()
+            == getattr(pred, label_attr, "").lower()
+        )
+
+    return metric
+
+
+# ---------------------------------------------------------------------------
+# 3. Aggregate Evaluation
+# ---------------------------------------------------------------------------
+
+def evaluate_predictions(
+    name: str,
+    predictions: List[str],
+    gold_labels: List[str],
+    positive_label: str = "APPROVED",
+) -> Dict[str, Any]:
+    """
+    Compute and print precision, recall, F1, accuracy from prediction lists.
+
+    Args:
+        name: Display name for the optimizer/model.
+        predictions: List of predicted labels.
+        gold_labels: List of ground-truth labels.
+        positive_label: Which label counts as "positive".
+
+    Returns:
+        Dict with tp, fp, fn, tn, precision, recall, f1, accuracy.
+    """
+    pos = positive_label.upper()
+    tp = sum(1 for p, g in zip(predictions, gold_labels) if p.upper() == pos and g.upper() == pos)
+    fp = sum(1 for p, g in zip(predictions, gold_labels) if p.upper() == pos and g.upper() != pos)
+    fn = sum(1 for p, g in zip(predictions, gold_labels) if p.upper() != pos and g.upper() == pos)
+    tn = sum(1 for p, g in zip(predictions, gold_labels) if p.upper() != pos and g.upper() != pos)
+
+    precision = tp / (tp + fp) if (tp + fp) else 0.0
+    recall = tp / (tp + fn) if (tp + fn) else 0.0
+    f1 = 2 * precision * recall / (precision + recall) if (precision + recall) else 0.0
+    accuracy = (tp + tn) / len(predictions) if predictions else 0.0
+
+    print(f"\n{name} Results (n={len(predictions)}):")
+    print(f"  Precision : {precision:.1%}")
+    print(f"  Recall    : {recall:.1%}")
+    print(f"  F1        : {f1:.3f}")
+    print(f"  Accuracy  : {accuracy:.1%}")
+    print(f"  TP={tp}  FP={fp}  FN={fn}  TN={tn}")
+
+    return {
+        "precision": precision,
+        "recall": recall,
+        "f1": f1,
+        "accuracy": accuracy,
+        "tp": tp,
+        "fp": fp,
+        "fn": fn,
+        "tn": tn,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _get_preview(example, attr: str, max_chars: int) -> str:
+    text = getattr(example, attr, "")
+    if not text:
+        return ""
+    text = str(text).strip()
+    if len(text) <= max_chars:
+        return text
+    return text[:max_chars - 3] + "..."

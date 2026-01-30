@@ -1,0 +1,12 @@
+[project]
+name = "dspy-optimizer-scripts"
+version = "0.1.0"
+description = "Portable DSPy classification pipeline scripts (GEPA default)"
+requires-python = ">=3.10"
+dependencies = [
+    "dspy>=2.6",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+knn = ["openai>=1.0", "numpy>=1.24"]

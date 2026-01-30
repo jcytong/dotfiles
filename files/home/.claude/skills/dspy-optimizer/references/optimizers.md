@@ -12,14 +12,14 @@ from dspy.teleprompt import GEPA
 reflection_lm = dspy.LM(model="gpt-5", temperature=1.0, max_tokens=32000)
 
 optimizer = GEPA(
-    metric=recall_metric_with_feedback,   # Must return dspy.Prediction(score=, feedback=)
-    auto="medium",                         # Budget: "light", "medium", "heavy"
-    num_threads=32,                        # Parallel evaluation threads
-    track_stats=True,                      # Enable detailed result tracking
-    track_best_outputs=True,               # Track best outputs per example
-    reflection_minibatch_size=8,           # Batch size for feedback reflection
-    reflection_lm=reflection_lm,           # Stronger model for prompt rewriting
-    candidate_selection_strategy="pareto", # Explore recall-precision tradeoff
+    metric=gepa_metric,                    # Must return dspy.Prediction(score=, feedback=)
+    auto="medium",                          # Budget: "light", "medium", "heavy"
+    num_threads=32,
+    track_stats=True,
+    track_best_outputs=True,
+    reflection_minibatch_size=8,
+    reflection_lm=reflection_lm,
+    candidate_selection_strategy="pareto",
 )
 compiled = optimizer.compile(predict, trainset=data_train, valset=data_dev)
 ```
@@ -36,31 +36,19 @@ compiled = optimizer.compile(predict, trainset=data_train, valset=data_dev)
 - `skip_perfect_score`: Skip reflection on already-perfect examples (default: `True`)
 - `component_selector`: How GEPA picks which predictor to optimize (`"round_robin"` default)
 
-**Metric function requirements:**
+**Metric function signature:**
 ```python
 def my_gepa_metric(gold, pred, trace=None, pred_name=None, pred_trace=None):
-    """Must accept 5 args. Return dspy.Prediction(score=, feedback=)."""
     score = ...  # float
     feedback = ...  # str explaining WHY this score
     return dspy.Prediction(score=score, feedback=feedback)
 ```
 
-**When to use:** Default choice for all classification tasks. Especially strong when you can write rich textual feedback explaining prediction failures. Use `candidate_selection_strategy="pareto"` when optimizing for recall-precision tradeoff.
-
-**GEPA sweep grid:**
-```python
-gepa_configs = [
-    ("light", 3, "pareto"),
-    ("medium", 3, "pareto"),
-    ("medium", 8, "pareto"),
-    ("medium", 8, "current_best"),
-    ("heavy", 8, "pareto"),
-]
-```
+**When to use:** Default choice for all classification tasks. Especially strong when you can write rich textual feedback explaining prediction failures.
 
 ### 2. Baseline Predictor
 
-Raw `dspy.Predict(Signature)` with no optimization. Always run this first to establish a performance floor.
+Raw `dspy.Predict(Signature)` with no optimization. Run this first to establish a performance floor.
 
 ```python
 predict = dspy.Predict(MyClassifier)
@@ -73,25 +61,22 @@ Injects `k` labeled examples as few-shot demos. No bootstrapping or instruction 
 
 ```python
 from dspy.teleprompt import LabeledFewShot
-
 optimizer = LabeledFewShot(k=16)
 compiled = optimizer.compile(predict, trainset=data_train)
 ```
 
-**Hyperparameters:**
-- `k`: Number of labeled demos to include (default grid: `[16, 24, 32, 40]`)
+**Hyperparameters:** `k` (grid: `[16, 24, 32, 40]`)
 
-**When to use:** Quick baseline improvement over raw prediction. Low cost.
+**When to use:** Quick baseline improvement. Low cost.
 
 ### 4. BootstrapFewShot (BSFS)
 
-Bootstraps additional demonstrations by running the model on training data and keeping examples where the metric passes.
+Bootstraps demos by running the model on training data and keeping examples where the metric passes.
 
 ```python
 from dspy.teleprompt import BootstrapFewShot
-
 optimizer = BootstrapFewShot(
-    metric=validate_answer,
+    metric=accuracy_metric,
     max_labeled_demos=16,
     max_bootstrapped_demos=4,
     metric_threshold=1,
@@ -99,13 +84,9 @@ optimizer = BootstrapFewShot(
 compiled = optimizer.compile(predict, trainset=data_train)
 ```
 
-**Hyperparameters:**
-- `max_labeled_demos`: Number of gold-label demos (grid: `[16, 32, 48]`)
-- `max_bootstrapped_demos`: Number of self-generated demos (grid: `[4, 8]`)
-- `metric_threshold`: Minimum metric score for bootstrapped demo acceptance (typically `1` for exact match)
-- `metric`: Per-example metric function
+**Hyperparameters:** `max_labeled_demos` (grid: `[16, 32, 48]`), `max_bootstrapped_demos` (grid: `[4, 8]`)
 
-**When to use:** Best general-purpose single model. Medium cost. Usually the strongest single performer.
+**When to use:** Best general-purpose single non-GEPA model. Medium cost.
 
 ### 5. BootstrapFewShotWithRandomSearch (BSFSWRS)
 
@@ -113,9 +94,8 @@ Runs BSFS multiple times with random subsets and picks the best candidate progra
 
 ```python
 from dspy.teleprompt import BootstrapFewShotWithRandomSearch
-
 optimizer = BootstrapFewShotWithRandomSearch(
-    metric=validate_answer,
+    metric=accuracy_metric,
     num_candidate_programs=16,
     max_bootstrapped_demos=4,
     max_labeled_demos=16,
@@ -123,11 +103,7 @@ optimizer = BootstrapFewShotWithRandomSearch(
 compiled = optimizer.compile(predict, trainset=data_train)
 ```
 
-**Hyperparameters:**
-- `num_candidate_programs`: Number of random programs to evaluate (default: `16`)
-- Same as BSFS for demo counts
-
-**When to use:** When BSFS performance varies across runs and you want more robustness. Higher cost than BSFS.
+**When to use:** When BSFS varies across runs. Medium-high cost.
 
 ### 6. KNNFewShot
 
@@ -135,53 +111,32 @@ Selects demos via k-nearest-neighbor semantic similarity at inference time.
 
 ```python
 from dspy.teleprompt import KNNFewShot
-from openai import OpenAI
-import numpy as np
-
-client = OpenAI()
-
-def openai_embeddings(texts):
-    if isinstance(texts, str):
-        texts = [texts]
-    response = client.embeddings.create(model="text-embedding-3-small", input=texts)
-    embeddings = np.array([e.embedding for e in response.data], dtype=np.float32)
-    return embeddings[0] if len(embeddings) == 1 else embeddings
-
 optimizer = KNNFewShot(k=5, trainset=data_train, vectorizer=openai_embeddings)
 compiled = optimizer.compile(predict)
 ```
 
-**Hyperparameters:**
-- `k`: Number of nearest neighbors to retrieve (default: `5`)
-- `vectorizer`: Embedding function (must handle single string and list of strings)
-
-**When to use:** When input examples vary widely and relevant demos depend on similarity. Requires embedding API calls at inference time.
+**When to use:** When input varies widely and relevant demos depend on similarity. Requires embeddings at inference.
 
 ### 7. MIPROv2
 
-Task-aware instruction and demonstration optimization. Optimizes both the prompt instructions and demo selection.
+Task-aware instruction and demonstration optimization.
 
 ```python
 from dspy.teleprompt import MIPROv2
-
-optimizer = MIPROv2(metric=validate_answer)
+optimizer = MIPROv2(metric=simple_metric)
 compiled = optimizer.compile(predict, trainset=data_train, valset=data_dev)
 ```
 
-**Hyperparameters:**
-- `metric`: Per-example metric function
-
-**When to use:** When prompt wording matters and you want DSPy to rewrite instructions. High cost. Requires both trainset and valset.
+**When to use:** When prompt wording matters. High cost. Requires trainset + valset.
 
 ### 8. COPRO (Cost-Aware Prompt Optimizer)
 
-Iteratively optimizes prompts by breadth-first search over instruction candidates, scored by a custom metric.
+Iteratively optimizes prompts by breadth-first search over instruction candidates.
 
 ```python
 from dspy.teleprompt import COPRO
-
 optimizer = COPRO(
-    metric=recall_metric,
+    metric=simple_metric,
     depth=4,
     breadth=6,
     init_temperature=0.0,
@@ -189,21 +144,14 @@ optimizer = COPRO(
 compiled = optimizer.compile(predict, trainset=data_train, eval_kwargs={})
 ```
 
-**Hyperparameters:**
-- `depth`: Search depth for instruction refinement (grid: `[1, 2, 3, 4]`)
-- `breadth`: Number of candidate instructions per depth level (grid: `[2, 3, 4, 6]`)
-- `init_temperature`: Starting temperature for generation (grid: `[0.0, 0.3, 1.4]`)
-- `metric`: Per-example metric (use `recall_metric` for recall-focused, `precision_metric` for precision-focused)
-- `prompt_model`: Optional separate LM for generating prompt candidates (e.g., `dspy.LM(model="openai/gpt-4.1")`)
+**Hyperparameters:** `depth` (grid: `[1,2,3,4]`), `breadth` (grid: `[2,3,4,6]`), `init_temperature` (grid: `[0.0, 0.3, 1.4]`)
 
-**When to use:** When you need to optimize for a specific metric (recall vs precision). Best paired with BSFS in a union strategy. High cost. The `eval_kwargs={}` parameter is required.
+**When to use:** Specific metric optimization (recall vs precision). The `eval_kwargs={}` parameter is required.
 
-## Hyperparameter Sweep Grid
-
-Recommended sweep configurations:
+## Hyperparameter Sweep Grids
 
 ```python
-# GEPA: 5 configs (default optimizer - sweep first)
+# GEPA: 5 configs (default - sweep first)
 gepa_grid = [
     # (auto, reflection_minibatch_size, candidate_selection_strategy)
     ("light", 3, "pareto"),
