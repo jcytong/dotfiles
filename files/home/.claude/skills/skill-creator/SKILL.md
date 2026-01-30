@@ -78,6 +78,7 @@ Executable code (Python/Bash/etc.) for tasks that require deterministic reliabil
 - **Example**: `scripts/rotate_pdf.py` for PDF rotation tasks
 - **Benefits**: Token efficient, deterministic, may be executed without loading into context
 - **Note**: Scripts may still need to be read by Claude for patching or environment-specific adjustments
+- **Portability**: When a skill includes scripts, include a dependency manifest so users can install requirements. Use `pyproject.toml` for Python scripts and `package.json` for JavaScript scripts. Use version floors (e.g., `>=2.6`) rather than pinned versions to keep scripts portable across projects.
 
 ##### References (`references/`)
 
