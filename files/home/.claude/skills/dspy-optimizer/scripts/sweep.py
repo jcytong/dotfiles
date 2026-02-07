@@ -183,7 +183,7 @@ def main():
     data_train, data_dev, _ = stratified_split(examples, TRAIN_FRAC, DEV_FRAC, SPLIT_SEED)
     print_split_summary({"Train": data_train, "Dev": data_dev})
 
-    dspy.settings.configure(
+    dspy.configure(
         lm=dspy.LM(model=INFERENCE_MODEL, temperature=1.0, max_tokens=16000)
     )
 

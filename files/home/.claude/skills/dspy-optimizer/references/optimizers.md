@@ -34,7 +34,10 @@ compiled = optimizer.compile(predict, trainset=data_train, valset=data_dev)
 - `use_merge`: Enable merge-based optimization combining best candidates (default: `True`)
 - `max_merge_invocations`: Cap on merge operations (default: `5`)
 - `skip_perfect_score`: Skip reflection on already-perfect examples (default: `True`)
-- `component_selector`: How GEPA picks which predictor to optimize (`"round_robin"` default)
+- `component_selector`: How GEPA picks which predictor to optimize (`"round_robin"` default, also `"all"` or a callable)
+- `log_dir`: Directory for checkpointing optimization state (enables resume)
+- `use_wandb`: Enable Weights & Biases experiment tracking (default: `False`)
+- `use_mlflow`: Enable MLflow experiment tracking (default: `False`)
 
 **Metric function signature:**
 ```python
@@ -148,6 +151,20 @@ compiled = optimizer.compile(predict, trainset=data_train, eval_kwargs={})
 
 **When to use:** Specific metric optimization (recall vs precision). The `eval_kwargs={}` parameter is required.
 
+### 9. SIMBA (Stochastic Mini-Batch Adaptation)
+
+Uses stochastic mini-batch sampling to identify challenging examples and focus optimization effort on them.
+
+```python
+from dspy.teleprompt import SIMBA
+optimizer = SIMBA(metric=simple_metric, max_steps=12, max_demos=10)
+compiled = optimizer.compile(student=predict, trainset=data_train)
+```
+
+**Key parameters:** `max_steps` (optimization iterations), `max_demos` (max demonstrations to include)
+
+**When to use:** When training data has uneven difficulty and you want the optimizer to focus on hard examples. Medium-high cost.
+
 ## Hyperparameter Sweep Grids
 
 ```python
@@ -208,6 +225,9 @@ Input varies widely, need adaptive demos?
 Want DSPy to rewrite your instructions?
   -> GEPA (does this natively via reflection LM)
   -> Fallback: MIPROv2
+
+Training data has uneven difficulty?
+  -> SIMBA (focuses on challenging examples via mini-batch sampling)
 ```
 
 **Decision rule**: Always start with GEPA. Only use alternatives if benchmarking shows they outperform GEPA on your specific holdout set.

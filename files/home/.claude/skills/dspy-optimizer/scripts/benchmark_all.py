@@ -234,7 +234,7 @@ def main():
         data_dev = data_dev[:10]
         print("[QUICK SANITY] Reduced datasets\n")
 
-    dspy.settings.configure(
+    dspy.configure(
         lm=dspy.LM(model=INFERENCE_MODEL, temperature=INFERENCE_TEMPERATURE, max_tokens=INFERENCE_MAX_TOKENS)
     )
 

@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Portable DSPy classification pipeline scripts (GEPA default)"
 requires-python = ">=3.10"
 dependencies = [
-    "dspy>=2.6",
+    "dspy>=3.1.3",
     "python-dotenv>=1.0",
 ]
 

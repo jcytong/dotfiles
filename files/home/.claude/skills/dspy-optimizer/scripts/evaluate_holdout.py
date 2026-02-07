@@ -125,7 +125,7 @@ def main():
         raise FileNotFoundError(f"Model not found: {model_path}")
 
     # Configure LM
-    dspy.settings.configure(
+    dspy.configure(
         lm=dspy.LM(model=INFERENCE_MODEL, temperature=INFERENCE_TEMPERATURE, max_tokens=INFERENCE_MAX_TOKENS)
     )
 

@@ -54,7 +54,7 @@ class Classifier:
         if not model_path.exists():
             raise FileNotFoundError(f"Model not found: {model_path}")
 
-        dspy.settings.configure(
+        dspy.configure(
             lm=dspy.LM(model=model, temperature=temperature, max_tokens=max_tokens)
         )
 

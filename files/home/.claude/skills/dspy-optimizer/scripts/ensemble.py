@@ -68,7 +68,7 @@ def main():
     parser.add_argument("--eval-set", choices=["dev", "holdout"], default="dev", help="Which split to evaluate on")
     args = parser.parse_args()
 
-    dspy.settings.configure(
+    dspy.configure(
         lm=dspy.LM(model=INFERENCE_MODEL, temperature=1.0, max_tokens=INFERENCE_MAX_TOKENS)
     )
 

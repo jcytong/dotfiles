@@ -132,7 +132,7 @@ def main():
         temperature=REFLECTION_TEMPERATURE,
         max_tokens=REFLECTION_MAX_TOKENS,
     )
-    dspy.settings.configure(lm=inference_lm)
+    dspy.configure(lm=inference_lm)
 
     # 4. Build metric
     gepa_metric = make_gepa_metric(

@@ -191,7 +191,10 @@ compiled_model.save("pretrained/gepa_model.json")
 | `use_merge` | `True` | Merge-based optimization (combines best candidates) |
 | `max_merge_invocations` | `5` | Cap on merge operations |
 | `skip_perfect_score` | `True` | Skip reflection on already-perfect examples |
-| `component_selector` | `"round_robin"` | How GEPA picks which predictor to optimize |
+| `component_selector` | `"round_robin"` | How GEPA picks which predictor to optimize. Also accepts `"all"` or a callable |
+| `log_dir` | `None` | Directory for checkpointing optimization state |
+| `use_wandb` | `False` | Enable Weights & Biases experiment tracking |
+| `use_mlflow` | `False` | Enable MLflow experiment tracking |
 | `seed` | `0` | Random seed for reproducibility |
 
 ### Budget Guidance
@@ -233,6 +236,7 @@ See [references/optimizers.md](references/optimizers.md) for the full optimizer 
 | KNNFewShot | Medium | Semantic demo retrieval |
 | MIPROv2 | High | Instruction optimization |
 | COPRO | High | Recall/precision tuning |
+| SIMBA | Medium-High | Stochastic mini-batch challenge mining |
 
 ## Step 5a: Hyperparameter Sweep
 
