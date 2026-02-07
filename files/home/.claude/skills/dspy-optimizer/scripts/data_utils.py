@@ -1,8 +1,14 @@
 """
-Portable data loading and stratified splitting for DSPy classification pipelines.
+Portable data loading and splitting for DSPy optimization pipelines.
+
+Supports:
+  - load_from_csv / load_from_jsonl: Load labeled examples with configurable output field
+  - stratified_split: Split preserving class ratios (for classification tasks)
+  - random_split: Simple random split (for QA, summarization, extraction tasks)
+  - print_split_summary: Display split statistics
 
 Usage:
-    from data_utils import load_from_csv, load_from_jsonl, stratified_split, print_split_summary
+    from data_utils import load_from_csv, load_from_jsonl, stratified_split, random_split, print_split_summary
 """
 
 import csv
@@ -20,6 +26,7 @@ def load_from_csv(
     label_field: str,
     label_map: Optional[Dict[str, str]] = None,
     reasoning_field: Optional[str] = None,
+    output_field: str = "status",
 ) -> List[dspy.Example]:
     """
     Load labeled examples from a CSV file.
@@ -27,10 +34,14 @@ def load_from_csv(
     Args:
         path: Path to CSV file.
         input_fields: Column names to use as dspy.InputField values.
-        label_field: Column name containing the classification label.
+        label_field: Column name containing the output label/answer.
         label_map: Optional dict mapping raw labels to canonical labels
                    (e.g., {"yes": "APPROVED", "no": "REJECTED"}).
+                   Primarily useful for classification tasks where raw labels
+                   need remapping.
         reasoning_field: Optional column with ground-truth reasoning.
+        output_field: Name of the output field on the dspy.Example
+                      (default "status" for classification; use "answer" for QA, etc.).
 
     Returns:
         List of dspy.Example objects with inputs marked.
@@ -65,7 +76,7 @@ def load_from_csv(
                     break
                 fields[field] = value
             else:
-                fields["status"] = label
+                fields[output_field] = label
                 if reasoning_field and row.get(reasoning_field):
                     fields["reasoning"] = row[reasoning_field].strip()
 
@@ -73,7 +84,7 @@ def load_from_csv(
                 examples.append(ex)
 
     print(f"Loaded {len(examples)} examples from {path.name} (skipped {skipped})")
-    _print_label_counts(examples)
+    _print_label_counts(examples, output_field)
     return examples
 
 
@@ -83,6 +94,7 @@ def load_from_jsonl(
     label_field: str = "status",
     label_map: Optional[Dict[str, str]] = None,
     reasoning_field: Optional[str] = None,
+    output_field: str = "status",
 ) -> List[dspy.Example]:
     """
     Load labeled examples from a JSONL file (one JSON object per line).
@@ -90,9 +102,13 @@ def load_from_jsonl(
     Args:
         path: Path to JSONL file.
         input_fields: Keys to use as dspy.InputField values.
-        label_field: Key containing the classification label.
+        label_field: Key containing the output label/answer.
         label_map: Optional mapping from raw labels to canonical labels.
+                   Primarily useful for classification tasks where raw labels
+                   need remapping.
         reasoning_field: Optional key with ground-truth reasoning.
+        output_field: Name of the output field on the dspy.Example
+                      (default "status" for classification; use "answer" for QA, etc.).
 
     Returns:
         List of dspy.Example objects with inputs marked.
@@ -136,7 +152,7 @@ def load_from_jsonl(
             if not valid:
                 continue
 
-            fields["status"] = label
+            fields[output_field] = label
             if reasoning_field and payload.get(reasoning_field):
                 fields["reasoning"] = str(payload[reasoning_field]).strip()
 
@@ -144,7 +160,7 @@ def load_from_jsonl(
             examples.append(ex)
 
     print(f"Loaded {len(examples)} examples from {path.name} (skipped {skipped})")
-    _print_label_counts(examples)
+    _print_label_counts(examples, output_field)
     return examples
 
 
@@ -158,12 +174,14 @@ def stratified_split(
     """
     Split examples into train/dev/holdout while preserving class ratios.
 
+    Best for classification tasks where maintaining label distribution matters.
+
     Args:
         examples: Full dataset.
         train_frac: Fraction allocated to training.
         dev_frac: Fraction allocated to dev/validation.
         seed: Random seed for reproducibility.
-        label_attr: Attribute name containing the label.
+        label_attr: Attribute name containing the label to stratify on.
 
     Returns:
         (train, dev, holdout) tuple.
@@ -203,16 +221,48 @@ def stratified_split(
     return train, dev, holdout
 
 
+def random_split(
+    examples: List[dspy.Example],
+    train_frac: float = 0.64,
+    dev_frac: float = 0.16,
+    seed: int = 42,
+) -> Tuple[List[dspy.Example], List[dspy.Example], List[dspy.Example]]:
+    """
+    Split examples into train/dev/holdout with simple random shuffling.
+
+    Best for non-categorical tasks (QA, summarization, extraction) where
+    there's no discrete label to stratify on.
+
+    Args:
+        examples: Full dataset.
+        train_frac: Fraction allocated to training.
+        dev_frac: Fraction allocated to dev/validation.
+        seed: Random seed for reproducibility.
+
+    Returns:
+        (train, dev, holdout) tuple.
+    """
+    rng = random.Random(seed)
+    shuffled = list(examples)
+    rng.shuffle(shuffled)
+
+    n = len(shuffled)
+    train_end = int(round(n * train_frac))
+    dev_end = train_end + int(round(n * dev_frac))
+
+    return shuffled[:train_end], shuffled[train_end:dev_end], shuffled[dev_end:]
+
+
 def print_split_summary(
     splits: Dict[str, List[dspy.Example]],
     label_attr: str = "status",
 ) -> None:
     """Print a formatted summary of dataset splits with class counts."""
-    print("\nDataset split summary (stratified):")
+    print("\nDataset split summary:")
     for name, data in splits.items():
         by_label: Dict[str, int] = {}
         for ex in data:
-            label = getattr(ex, label_attr)
+            label = getattr(ex, label_attr, "N/A")
             by_label[label] = by_label.get(label, 0) + 1
         parts = ", ".join(f"{k}: {v}" for k, v in sorted(by_label.items()))
         total = len(data)

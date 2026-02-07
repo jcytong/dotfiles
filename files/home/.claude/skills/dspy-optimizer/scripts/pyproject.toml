@@ -1,7 +1,7 @@
 [project]
 name = "dspy-optimizer-scripts"
 version = "0.1.0"
-description = "Portable DSPy classification pipeline scripts (GEPA default)"
+description = "Portable DSPy optimization pipeline scripts (GEPA default)"
 requires-python = ">=3.10"
 dependencies = [
     "dspy>=3.1.3",

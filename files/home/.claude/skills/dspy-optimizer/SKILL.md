@@ -1,11 +1,11 @@
 ---
 name: dspy-optimizer
-description: "Build, train, and optimize DSPy classification pipelines. Use when creating a new DSPy Signature for classification, training/optimizing a DSPy program with teleprompt optimizers (GEPA, BootstrapFewShot, COPRO, MIPROv2, LabeledFewShot, KNNFewShot, BootstrapFewShotWithRandomSearch), evaluating model performance (recall, precision, F1), running hyperparameter sweeps, building ensemble/union strategies, performing error analysis (false negatives/positives), or compiling pretrained models for production deployment. Triggers on: dspy, optimize prompt, train classifier, company screener, prompt optimization, teleprompt, few-shot, bootstrap, copro, mipro, gepa, recall optimization, precision optimization, ensemble strategy, model evaluation, hyperparameter sweep, pretrained model, dspy signature."
+description: "Build, train, and optimize DSPy pipelines for any task type (classification, QA, extraction, summarization). Use when creating a new DSPy Signature, training/optimizing a DSPy program with teleprompt optimizers (GEPA, BootstrapFewShot, COPRO, MIPROv2, LabeledFewShot, KNNFewShot, BootstrapFewShotWithRandomSearch), evaluating model performance, running hyperparameter sweeps, building ensemble strategies, performing error analysis, or compiling pretrained models for production deployment. Triggers on: dspy, optimize prompt, train pipeline, prompt optimization, teleprompt, few-shot, bootstrap, copro, mipro, gepa, metric optimization, ensemble strategy, model evaluation, hyperparameter sweep, pretrained model, dspy signature, question answering, entity extraction, text classification."
 ---
 
 # DSPy Optimizer
 
-Procedural guide for building, training, evaluating, and deploying DSPy classification pipelines.
+Procedural guide for building, training, evaluating, and deploying DSPy optimization pipelines for any task type.
 
 **Default optimizer: GEPA** (Generative Prompt Adaptation). GEPA is the recommended first choice for all new pipelines. It uses reflection-based prompt optimization with textual feedback from your metric function. Other optimizers (BootstrapFewShot, COPRO, MIPROv2, etc.) should be benchmarked against GEPA and only preferred when they demonstrably outperform it in experimentation.
 
@@ -15,13 +15,13 @@ All code is in portable, project-agnostic scripts under `scripts/`. Copy these i
 
 | Script | Purpose | Workflow Step |
 |--------|---------|---------------|
-| [data_utils.py](scripts/data_utils.py) | Load CSV/JSONL, stratified split | Step 2 |
-| [metrics.py](scripts/metrics.py) | GEPA feedback metrics, simple metrics, evaluation | Step 3 |
+| [data_utils.py](scripts/data_utils.py) | Load CSV/JSONL, stratified/random split | Step 2 |
+| [metrics.py](scripts/metrics.py) | Generic + classification metrics, evaluation | Step 3 |
 | [train_gepa.py](scripts/train_gepa.py) | Default GEPA training pipeline | Step 4 |
 | [benchmark_all.py](scripts/benchmark_all.py) | Compare GEPA vs all other optimizers | Step 5 |
 | [sweep.py](scripts/sweep.py) | Hyperparameter grid search | Step 5a |
 | [evaluate_holdout.py](scripts/evaluate_holdout.py) | Holdout eval + error analysis | Steps 6 & 8 |
-| [ensemble.py](scripts/ensemble.py) | Union/cascade multi-model strategy | Step 7 |
+| [ensemble.py](scripts/ensemble.py) | Multi-model combination strategy | Step 7 |
 | [build_pretrained.py](scripts/build_pretrained.py) | Compile production JSON artifacts | Step 9 |
 | [inference.py](scripts/inference.py) | Production inference wrapper | Step 9 |
 
@@ -42,81 +42,140 @@ All code is in portable, project-agnostic scripts under `scripts/`. Copy these i
 
 ## Step 1: Define a DSPy Signature
 
-Create a `dspy.Signature` subclass with a detailed docstring prompt and typed input/output fields.
+Create a `dspy.Signature` subclass with a detailed docstring prompt and typed input/output fields. The output field name and types depend on your task.
+
+### Classification Example
 
 ```python
 import dspy
 
-class MyClassifier(dspy.Signature):
+class CompanyScreener(dspy.Signature):
     """
-    [Detailed role description and instructions in markdown]
-
-    **Classification Rules:**
-    [Numbered rules with examples for each class]
-
-    **Examples:**
-    [3-4 examples covering: clear positive, clear negative, borderline cases]
+    [Detailed classification rules and examples]
     """
-    # Inputs
-    field_1: str = dspy.InputField(description="Description of field 1")
-    # Outputs
-    status: str = dspy.OutputField(description="CLASS_A or CLASS_B")
+    company_description: str = dspy.InputField(description="Company profile")
+    status: str = dspy.OutputField(description="APPROVED or REJECTED")
     confidence: float = dspy.OutputField(description="Confidence 0.0-1.0")
     reasoning: str = dspy.OutputField(description="Explanation for the decision")
 ```
 
+### QA Example
+
+```python
+class QuestionAnswerer(dspy.Signature):
+    """
+    Answer the question based on the given context.
+    """
+    context: str = dspy.InputField(description="Reference text")
+    question: str = dspy.InputField(description="Question to answer")
+    answer: str = dspy.OutputField(description="Concise answer")
+    reasoning: str = dspy.OutputField(description="Step-by-step reasoning")
+```
+
+### Extraction Example
+
+```python
+class EntityExtractor(dspy.Signature):
+    """
+    Extract all named entities from the given text.
+    Return entities as a JSON array of {name, type} objects.
+    """
+    text: str = dspy.InputField(description="Source text")
+    entities: str = dspy.OutputField(description='JSON array: [{"name": "...", "type": "..."}]')
+    reasoning: str = dspy.OutputField(description="Extraction rationale")
+```
+
 Key prompt design patterns:
-- Embed the full classification rubric in the docstring (not in field descriptions)
-- Include confidence score calibration guidance
-- Add 3-4 concrete examples covering approve, reject, and borderline cases
+- Embed the full task rubric in the docstring (not in field descriptions)
+- Include 3-4 concrete examples covering typical and edge cases
 - Use markdown formatting with headers, bullet lists, and code blocks
 
 ## Step 2: Prepare Data
 
 > Full implementation: [scripts/data_utils.py](scripts/data_utils.py)
 
-Load labeled examples into `dspy.Example` objects with stratified train/dev/holdout splits.
+Load labeled examples into `dspy.Example` objects and split into train/dev/holdout.
+
+### Classification (stratified split)
 
 ```python
 from data_utils import load_from_csv, stratified_split, print_split_summary
 
 examples = load_from_csv(
     path="data/examples.csv",
-    input_fields=["field_1"],
+    input_fields=["company_description"],
     label_field="label",
     label_map={"yes": "APPROVED", "no": "REJECTED"},
-    reasoning_field="reasoning",  # optional
+    output_field="status",       # matches your Signature's output field
 )
 
-data_train, data_dev, data_holdout = stratified_split(examples, train_frac=0.64, dev_frac=0.16, seed=42)
-print_split_summary({"Train": data_train, "Dev": data_dev, "Holdout": data_holdout})
+data_train, data_dev, data_holdout = stratified_split(
+    examples, train_frac=0.64, dev_frac=0.16, seed=42, label_attr="status",
+)
+print_split_summary({"Train": data_train, "Dev": data_dev, "Holdout": data_holdout}, label_attr="status")
 ```
 
-Also supports JSONL via `load_from_jsonl()`. Split guidelines:
+### QA / Extraction / Summarization (random split)
+
+```python
+from data_utils import load_from_jsonl, random_split, print_split_summary
+
+examples = load_from_jsonl(
+    path="data/qa_pairs.jsonl",
+    input_fields=["context", "question"],
+    label_field="answer",
+    output_field="answer",       # matches your Signature's output field
+)
+
+data_train, data_dev, data_holdout = random_split(examples, train_frac=0.64, dev_frac=0.16, seed=42)
+```
+
+Also supports CSV via `load_from_csv()`. Split guidelines:
 - **Train**: ~64% for optimizer compilation
 - **Dev**: ~16% for optimizer tuning and comparison
 - **Holdout**: ~20% untouched until final evaluation
+- Use `stratified_split` when maintaining label distribution matters (classification)
+- Use `random_split` for continuous/non-categorical outputs (QA, summarization)
 - Always use a fixed seed for reproducibility
 
 ## Step 3: Define Metric Functions
 
 > Full implementation: [scripts/metrics.py](scripts/metrics.py)
 
-Three kinds of metrics: **GEPA feedback metrics** (score + textual feedback), **simple metrics** (float, for non-GEPA optimizers), and **aggregate evaluation** (precision/recall/F1).
+### Generic GEPA Metrics (any task)
 
-### GEPA Feedback Metrics
-
-GEPA requires a metric that accepts 5 arguments `(gold, pred, trace, pred_name, pred_trace)` and returns `dspy.Prediction(score=float, feedback=str)`. Use the factory from `metrics.py`:
+GEPA requires a metric returning `dspy.Prediction(score=float, feedback=str)`. Use the generic factory for any task:
 
 ```python
-from metrics import make_gepa_metric, RECALL_WEIGHTS, PRECISION_WEIGHTS
+from metrics import make_gepa_metric_from_fn
+
+def my_score(gold, pred):
+    """Score a prediction against gold (0.0-1.0)."""
+    return float(gold.answer.strip().lower() == pred.answer.strip().lower())
+
+def my_feedback(gold, pred, score):
+    """Explain the score for GEPA reflection."""
+    if score == 1.0:
+        return f"Correct: '{pred.answer}'"
+    return f"Wrong: expected '{gold.answer}', got '{pred.answer}'. Analyze why."
+
+gepa_metric = make_gepa_metric_from_fn(my_score, my_feedback)
+```
+
+### Classification GEPA Metrics
+
+For binary classification with TP/FP/TN/FN feedback and configurable weights:
+
+```python
+from metrics import make_classification_gepa_metric, RECALL_WEIGHTS, PRECISION_WEIGHTS
 
 # Recall-priority (default): TP=1.0, FN=0.0, TN=0.8, FP=0.2
-gepa_metric = make_gepa_metric(
+gepa_metric = make_classification_gepa_metric(
     positive_label="APPROVED",
     negative_label="REJECTED",
+    output_field="status",
     weights=RECALL_WEIGHTS,
-    input_preview_attr="field_1",  # include input preview in FN feedback
+    input_preview_attr="company_description",  # include in FN feedback
 )
 ```
 
@@ -125,27 +184,60 @@ The `MetricWeights` dataclass controls the decision boundary:
 - **PRECISION_WEIGHTS**: `tp=1.0, fn=0.3, tn=0.8, fp=0.0` - penalizes false positives heavily
 - **BALANCED_WEIGHTS**: `tp=1.0, fn=0.0, tn=1.0, fp=0.0` - standard accuracy
 
-Key feedback design principles:
-- FN feedback must be rich (include input preview, model reasoning, critique)
-- Include ground-truth reasoning when available
-- Be specific in critiques (what patterns were missed)
-- Score asymmetry encodes priority
-
-### Simple Metrics (non-GEPA)
+### Generic Simple Metrics (non-GEPA optimizers)
 
 ```python
-from metrics import make_simple_metric, make_accuracy_metric
+from metrics import make_metric_from_fn
 
-simple_recall = make_simple_metric("APPROVED", "REJECTED", weights=RECALL_WEIGHTS)
-accuracy = make_accuracy_metric()
+simple_metric = make_metric_from_fn(my_score)  # wraps (gold, pred) -> float
+```
+
+### Classification Simple Metrics (non-GEPA)
+
+```python
+from metrics import make_classification_metric, make_accuracy_metric
+
+simple_recall = make_classification_metric("APPROVED", "REJECTED", weights=RECALL_WEIGHTS)
+accuracy = make_accuracy_metric(output_field="status")
 ```
 
 ### Aggregate Evaluation
 
 ```python
-from metrics import evaluate_predictions
-results = evaluate_predictions("Model Name", predictions, gold_labels, positive_label="APPROVED")
-# prints: Precision, Recall, F1, Accuracy, confusion matrix
+# Generic: compute mean score
+from metrics import evaluate_from_fn
+results = evaluate_from_fn("Model Name", examples, predictions, my_score)
+
+# Classification: precision/recall/F1/accuracy
+from metrics import evaluate_classification
+results = evaluate_classification("Model Name", pred_labels, gold_labels, positive_label="APPROVED")
+```
+
+### Task-Specific Metric Examples
+
+**QA (exact-match)**:
+```python
+def qa_score(gold, pred):
+    return float(gold.answer.strip().lower() == pred.answer.strip().lower())
+```
+
+**Extraction (set-F1)**:
+```python
+import json
+def extraction_score(gold, pred):
+    try:
+        gold_set = {e["name"].lower() for e in json.loads(gold.entities)}
+        pred_set = {e["name"].lower() for e in json.loads(pred.entities)}
+    except (json.JSONDecodeError, KeyError):
+        return 0.0
+    if not gold_set and not pred_set:
+        return 1.0
+    if not gold_set or not pred_set:
+        return 0.0
+    tp = len(gold_set & pred_set)
+    precision = tp / len(pred_set) if pred_set else 0
+    recall = tp / len(gold_set) if gold_set else 0
+    return 2 * precision * recall / (precision + recall) if (precision + recall) else 0.0
 ```
 
 ## Step 4: Train with GEPA (Default)
@@ -167,7 +259,7 @@ optimizer = GEPA(
     track_best_outputs=True,
     reflection_minibatch_size=8,
     reflection_lm=reflection_lm,
-    candidate_selection_strategy="pareto", # explore recall-precision tradeoff
+    candidate_selection_strategy="pareto", # explore multi-objective tradeoff
 )
 
 compiled_model = optimizer.compile(predict, trainset=data_train, valset=data_dev)
@@ -184,7 +276,7 @@ compiled_model.save("pretrained/gepa_model.json")
 | `max_metric_calls` | `None` | Raw budget cap. Alternative to `auto` |
 | `reflection_lm` | *required* | LM for reflection/instruction rewriting. Use a strong model |
 | `reflection_minibatch_size` | `3` | Feedback examples per reflection batch. Higher = richer context |
-| `candidate_selection_strategy` | `"pareto"` | `"pareto"` explores recall-precision tradeoff; `"current_best"` optimizes single metric |
+| `candidate_selection_strategy` | `"pareto"` | `"pareto"` explores multi-objective tradeoff; `"current_best"` optimizes single metric |
 | `num_threads` | `None` | Parallel evaluation threads |
 | `track_stats` | `False` | Enable `detailed_results` on compiled model |
 | `track_best_outputs` | `False` | Track best outputs per example (requires `track_stats=True`) |
@@ -207,9 +299,9 @@ compiled_model.save("pretrained/gepa_model.json")
 ### Why GEPA is the Default
 
 1. **Feedback-driven**: Reads textual feedback explaining *why* predictions failed, enabling targeted instruction improvement.
-2. **Pareto exploration**: With `candidate_selection_strategy="pareto"`, explores the full recall-precision tradeoff.
+2. **Pareto exploration**: With `candidate_selection_strategy="pareto"`, explores the full multi-objective tradeoff.
 3. **Reflection LM**: Uses a separate strong model to analyze failures and rewrite instructions.
-4. **Proven results**: Produces the best recall while maintaining acceptable precision in production use.
+4. **Task-agnostic**: Works with any metric function, not just classification.
 
 ## Step 5: Benchmark Other Optimizers (Optional)
 
@@ -235,7 +327,7 @@ See [references/optimizers.md](references/optimizers.md) for the full optimizer 
 | BSFS + RandomSearch | Medium-High | Robust demo selection |
 | KNNFewShot | Medium | Semantic demo retrieval |
 | MIPROv2 | High | Instruction optimization |
-| COPRO | High | Recall/precision tuning |
+| COPRO | High | Targeted metric optimization |
 | SIMBA | Medium-High | Stochastic mini-batch challenge mining |
 
 ## Step 5a: Hyperparameter Sweep
@@ -269,11 +361,13 @@ python evaluate_holdout.py --model pretrained/gepa_model.json
 python evaluate_holdout.py --model pretrained/gepa_model.json --error-analysis
 ```
 
-## Step 7: Ensemble / Union Strategy
+## Step 7: Multi-Model Combination
 
 > Full implementation: [scripts/ensemble.py](scripts/ensemble.py)
 
-Combine complementary models with confidence thresholds:
+Combine complementary models. The combination strategy depends on your task.
+
+### Classification: Cascading Approval
 
 ```bash
 python ensemble.py \
@@ -286,20 +380,31 @@ Logic:
 - **Stage 2**: High-recall model (model B) with looser threshold -> fallback approve
 - **Default**: Reject if neither model approves
 
+### Other Tasks: Best-by-Score
+
+For QA, extraction, etc., configure `COMBINE_FN` in ensemble.py to use `best_by_score()`:
+
+```python
+from ensemble import best_by_score
+COMBINE_FN = lambda ex, pa, pb, args: best_by_score(pa, pb, my_score, ex)
+```
+
 ## Step 8: Error Analysis
 
 > Included in: [scripts/evaluate_holdout.py](scripts/evaluate_holdout.py) (`--error-analysis` flag)
 
 ```bash
 python evaluate_holdout.py --model pretrained/gepa_model.json \
-    --error-analysis --fn-limit 10 --fp-limit 10
+    --error-analysis --error-limit 10
 ```
 
-Use error analysis to:
-- Identify patterns in misclassified examples
+Examine failure patterns to:
+- Identify systematic errors in predictions
 - Refine signature docstring rules and examples
-- Add new rejection/approval rules
+- Add new rules or adjust scoring thresholds
 - Then **recompile all models** (prompt text changed)
+
+For classification, the default error categories are FN (false negatives) and FP (false positives). Configure `ERROR_CATEGORIES` and `CLASSIFY_OUTCOME_FN` in the script for custom error analysis.
 
 ## Step 9: Compile & Deploy to Production
 
@@ -316,11 +421,14 @@ python build_pretrained.py --include-alternatives # + BSFS, COPRO
 ### Production inference
 
 ```python
-from inference import Classifier
+from inference import Predictor
 
-clf = Classifier("pretrained/gepa_model.json")
-result = clf.predict(field_1="input text here")
+model = Predictor("pretrained/gepa_model.json", output_fields=["status", "confidence", "reasoning"])
+result = model.predict(company_description="input text here")
 print(result)  # {"status": "APPROVED", "confidence": 0.92, "reasoning": "..."}
+
+# Backward-compatible alias:
+from inference import Classifier  # same as Predictor
 ```
 
 Or via CLI:
@@ -348,7 +456,7 @@ Key deployment rules:
 
 ```
 experiments/
-  my_classifier/
+  my_pipeline/
     data/
       examples.csv                    # Labeled dataset
     gepa_experiments.py               # GEPA-focused experiment (default)
@@ -361,7 +469,7 @@ experiments/
       benchmark_results.json          # All-optimizer comparison
 
 production/ml/
-  my_classifier/
+  my_pipeline/
     core.py                           # Production Signature + inference wrapper
     pretrained/
       gepa_model.json                 # Default production model

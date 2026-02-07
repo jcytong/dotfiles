@@ -3,7 +3,7 @@
 Benchmark all DSPy optimizers against each other.
 
 Runs GEPA (default) plus traditional and advanced optimizers,
-then prints a comparison table sorted by recall.
+then prints a comparison table sorted by the configured metric.
 
 Usage:
     python benchmark_all.py
@@ -18,7 +18,6 @@ Environment variables:
 
 import json
 import os
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
@@ -39,16 +38,44 @@ load_dotenv()
 from data_utils import load_from_csv, print_split_summary, stratified_split
 from metrics import (
     RECALL_WEIGHTS,
-    evaluate_predictions,
+    evaluate_classification,
     make_accuracy_metric,
-    make_gepa_metric,
-    make_simple_metric,
+    make_classification_gepa_metric,
+    make_classification_metric,
 )
 
 # ── CONFIGURE THESE ──────────────────────────────────────────────────────────
 
-POSITIVE_LABEL = "APPROVED"
-NEGATIVE_LABEL = "REJECTED"
+# Output field — the name of the field your Signature produces as its main output.
+# Classification: "status"  |  QA: "answer"  |  Extraction: "entities"
+OUTPUT_FIELD = "status"
+
+# Evaluation function — configure for your task.
+# Classification default:
+EVALUATE_FN: Callable[[str, List[dspy.Example], List[dspy.Prediction]], Dict[str, Any]] = (
+    lambda name, exs, preds: evaluate_classification(
+        name,
+        [getattr(p, OUTPUT_FIELD) for p in preds],
+        [getattr(e, OUTPUT_FIELD) for e in exs],
+        "APPROVED",
+    )
+)
+# Generic example (uncomment):
+# from metrics import evaluate_from_fn
+# def my_score(gold, pred): ...
+# EVALUATE_FN = lambda name, exs, preds: evaluate_from_fn(name, exs, preds, my_score)
+
+# Sort metric — which key in the results dict to sort by (descending).
+# Classification: "recall", "precision", "f1", "accuracy"
+# Generic: "mean_score"
+SORT_METRIC = "recall"
+SECONDARY_SORT = "precision"
+
+# Display columns — which metrics to show in the comparison table.
+# Classification default:
+DISPLAY_COLUMNS = ["recall", "precision", "f1", "fn", "fp"]
+# Generic alternative:
+# DISPLAY_COLUMNS = ["mean_score"]
 
 # LM configuration
 INFERENCE_MODEL = "openai/gpt-4o"
@@ -71,7 +98,7 @@ def load_data() -> List[dspy.Example]:
     """Load data. Replace with your actual data loading."""
     raise NotImplementedError(
         "Replace this function with your data loading logic.\n"
-        "Example: return load_from_csv('data.csv', ['field_1'], 'label', {'yes': 'APPROVED'})"
+        "Example: return load_from_csv('data.csv', ['field_1'], 'label', {'yes': 'APPROVED'}, output_field=OUTPUT_FIELD)"
     )
 
 
@@ -86,7 +113,6 @@ def run_optimizer(
     name: str,
     compile_fn: Callable,
     eval_data: List[dspy.Example],
-    positive_label: str = "APPROVED",
 ) -> OptimizerResult:
     """Run a single optimizer: compile, evaluate, return results."""
     print(f"\n{'='*60}")
@@ -94,12 +120,8 @@ def run_optimizer(
     print(f"{'='*60}")
     try:
         compiled = compile_fn()
-        preds, golds = [], []
-        for ex in eval_data:
-            pred = compiled(**ex.inputs())
-            preds.append(pred.status)
-            golds.append(ex.status)
-        metrics = evaluate_predictions(name, preds, golds, positive_label)
+        predictions = [compiled(**ex.inputs()) for ex in eval_data]
+        metrics = EVALUATE_FN(name, eval_data, predictions)
         return OptimizerResult(name=name, metrics=metrics)
     except Exception as exc:
         print(f"  FAILED: {type(exc).__name__}: {exc}")
@@ -150,7 +172,7 @@ def build_optimizer_jobs(
 
     def _mipro():
         opt = MIPROv2(metric=simple_metric)
-        inner_train, inner_val, _ = stratified_split(data_train, 0.8, 0.2, seed=26)
+        inner_train, inner_val, _ = stratified_split(data_train, 0.8, 0.2, seed=26, label_attr=OUTPUT_FIELD)
         if not inner_val:
             inner_val = data_dev
         return opt.compile(predict, trainset=inner_train, valset=inner_val)
@@ -175,7 +197,7 @@ def build_optimizer_jobs(
             reflection_lm=reflection_lm,
             candidate_selection_strategy="pareto",
         )
-        inner_train, inner_val, _ = stratified_split(data_train, 0.8, 0.2, seed=27)
+        inner_train, inner_val, _ = stratified_split(data_train, 0.8, 0.2, seed=27, label_attr=OUTPUT_FIELD)
         if not inner_val:
             inner_val = data_dev
         return opt.compile(predict, trainset=inner_train, valset=inner_val)
@@ -196,27 +218,37 @@ def print_comparison_table(results: List[OptimizerResult]) -> None:
         print("\nNo results to compare.")
         return
 
-    valid.sort(key=lambda r: (-r.metrics["recall"], -r.metrics["precision"]))
+    valid.sort(key=lambda r: (
+        -r.metrics.get(SORT_METRIC, 0),
+        -r.metrics.get(SECONDARY_SORT, 0),
+    ))
 
     print(f"\n{'='*90}")
-    print("OPTIMIZER COMPARISON (sorted by recall)")
+    print(f"OPTIMIZER COMPARISON (sorted by {SORT_METRIC})")
     print(f"{'='*90}")
-    print(f"{'Optimizer':<30} {'Recall':<10} {'Precision':<12} {'F1':<8} {'FN':<6} {'FP':<6}")
+
+    # Build header
+    header = f"{'Optimizer':<30}"
+    for col in DISPLAY_COLUMNS:
+        header += f" {col.capitalize():<12}"
+    print(header)
     print("-" * 90)
 
     for r in valid:
         m = r.metrics
-        print(
-            f"{r.name:<30} "
-            f"{m['recall']:<10.1%} "
-            f"{m['precision']:<12.1%} "
-            f"{m['f1']:<8.3f} "
-            f"{m['fn']:<6} "
-            f"{m['fp']:<6}"
-        )
+        row = f"{r.name:<30}"
+        for col in DISPLAY_COLUMNS:
+            val = m.get(col, "N/A")
+            if isinstance(val, float) and val <= 1.0 and col not in ("fn", "fp", "tp", "tn"):
+                row += f" {val:<12.1%}"
+            elif isinstance(val, float):
+                row += f" {val:<12.3f}"
+            else:
+                row += f" {str(val):<12}"
+        print(row)
 
     best = valid[0]
-    print(f"\nBest recall: {best.name} ({best.metrics['recall']:.1%})")
+    print(f"\nBest {SORT_METRIC}: {best.name} ({best.metrics.get(SORT_METRIC, 'N/A')})")
 
 
 def main():
@@ -225,9 +257,12 @@ def main():
 
     examples = load_data()
     data_train, data_dev, data_holdout = stratified_split(
-        examples, TRAIN_FRAC, DEV_FRAC, SPLIT_SEED
+        examples, TRAIN_FRAC, DEV_FRAC, SPLIT_SEED, label_attr=OUTPUT_FIELD,
     )
-    print_split_summary({"Train": data_train, "Dev": data_dev, "Holdout": data_holdout})
+    print_split_summary(
+        {"Train": data_train, "Dev": data_dev, "Holdout": data_holdout},
+        label_attr=OUTPUT_FIELD,
+    )
 
     if sanity:
         data_train = data_train[:50]
@@ -239,12 +274,12 @@ def main():
     )
 
     # Replace with your signature
-    # predict = dspy.Predict(MyClassifier)
+    # predict = dspy.Predict(MyPipeline)
     predict = dspy.Predict(dspy.Signature)
 
-    gepa_metric = make_gepa_metric(POSITIVE_LABEL, NEGATIVE_LABEL, weights=RECALL_WEIGHTS)
-    simple_metric = make_simple_metric(POSITIVE_LABEL, NEGATIVE_LABEL, weights=RECALL_WEIGHTS)
-    accuracy_metric = make_accuracy_metric()
+    gepa_metric = make_classification_gepa_metric("APPROVED", "REJECTED", weights=RECALL_WEIGHTS)
+    simple_metric = make_classification_metric("APPROVED", "REJECTED", weights=RECALL_WEIGHTS)
+    accuracy_metric = make_accuracy_metric(output_field=OUTPUT_FIELD)
 
     traditional, advanced = build_optimizer_jobs(
         predict, data_train, data_dev, simple_metric, gepa_metric, accuracy_metric
@@ -268,14 +303,14 @@ def main():
     if trad_jobs:
         print(f"\nRunning {len(trad_jobs)} traditional optimizers...")
         for name, compile_fn in trad_jobs:
-            result = run_optimizer(name, compile_fn, data_dev, POSITIVE_LABEL)
+            result = run_optimizer(name, compile_fn, data_dev)
             all_results.append(result)
 
     # Advanced optimizers run sequentially (they use internal parallelism)
     if seq_jobs:
         print(f"\nRunning {len(seq_jobs)} advanced optimizers sequentially...")
         for name, compile_fn in seq_jobs:
-            result = run_optimizer(name, compile_fn, data_dev, POSITIVE_LABEL)
+            result = run_optimizer(name, compile_fn, data_dev)
             all_results.append(result)
 
     print_comparison_table(all_results)
@@ -292,7 +327,7 @@ def main():
 
     out_path = ANALYSIS_DIR / "benchmark_results.json"
     with out_path.open("w", encoding="utf-8") as f:
-        json.dump(summary, f, indent=2)
+        json.dump(summary, f, indent=2, default=str)
     print(f"\nResults saved to {out_path}")
 
 

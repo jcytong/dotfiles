@@ -28,16 +28,42 @@ load_dotenv()
 from data_utils import load_from_csv, print_split_summary, stratified_split
 from metrics import (
     RECALL_WEIGHTS,
-    evaluate_predictions,
+    evaluate_classification,
     make_accuracy_metric,
-    make_gepa_metric,
-    make_simple_metric,
+    make_classification_gepa_metric,
+    make_classification_metric,
 )
 
 # ── CONFIGURE THESE ──────────────────────────────────────────────────────────
 
-POSITIVE_LABEL = "APPROVED"
-NEGATIVE_LABEL = "REJECTED"
+# Output field — the name of the field your Signature produces as its main output.
+# Classification: "status"  |  QA: "answer"  |  Extraction: "entities"
+OUTPUT_FIELD = "status"
+
+# Evaluation function — configure for your task.
+# Classification default:
+EVALUATE_FN: Callable[[str, List[dspy.Example], List[dspy.Prediction]], Dict[str, Any]] = (
+    lambda name, exs, preds: evaluate_classification(
+        name,
+        [getattr(p, OUTPUT_FIELD) for p in preds],
+        [getattr(e, OUTPUT_FIELD) for e in exs],
+        "APPROVED",
+    )
+)
+# Generic example (uncomment):
+# from metrics import evaluate_from_fn
+# def my_score(gold, pred): ...
+# EVALUATE_FN = lambda name, exs, preds: evaluate_from_fn(name, exs, preds, my_score)
+
+# Sort metric — which key in the results dict to sort by (descending).
+# Classification: "recall", "precision", "f1"  |  Generic: "mean_score"
+SORT_METRIC = "recall"
+SECONDARY_SORT = "precision"
+
+# Display metrics — which keys to show in sweep results.
+# Classification default:
+DISPLAY_METRICS = ["recall", "precision", "f1"]
+# Generic: DISPLAY_METRICS = ["mean_score"]
 
 INFERENCE_MODEL = "openai/gpt-4o"
 REFLECTION_MODEL = "openai/gpt-4o"
@@ -60,14 +86,12 @@ def test_config(
     name: str,
     compile_fn: Callable,
     eval_data: List[dspy.Example],
-    positive_label: str,
 ) -> Optional[Dict[str, Any]]:
     """Compile and evaluate a single config, return metrics or None on error."""
     try:
         compiled = compile_fn()
-        preds = [compiled(**ex.inputs()).status for ex in eval_data]
-        golds = [ex.status for ex in eval_data]
-        return evaluate_predictions(name, preds, golds, positive_label)
+        predictions = [compiled(**ex.inputs()) for ex in eval_data]
+        return EVALUATE_FN(name, eval_data, predictions)
     except Exception as exc:
         print(f"  {name} FAILED: {exc}")
         return None
@@ -104,12 +128,14 @@ def sweep_gepa(
                 reflection_lm=reflection_lm,
                 candidate_selection_strategy=c["strategy"],
             )
-            inner_train, inner_val, _ = stratified_split(data_train, 0.8, 0.2, seed=27)
+            inner_train, inner_val, _ = stratified_split(
+                data_train, 0.8, 0.2, seed=27, label_attr=OUTPUT_FIELD,
+            )
             if not inner_val:
                 inner_val = data_dev
             return opt.compile(predict, trainset=inner_train, valset=inner_val)
 
-        metrics = test_config(name, _compile, data_dev, POSITIVE_LABEL)
+        metrics = test_config(name, _compile, data_dev)
         if metrics:
             results.append(("GEPA", cfg, metrics))
 
@@ -134,7 +160,7 @@ def sweep_copro(
                 metric=simple_metric, depth=d, breadth=b, init_temperature=t
             ).compile(predict, trainset=data_train, eval_kwargs={})
 
-        metrics = test_config(name, _compile, data_dev, POSITIVE_LABEL)
+        metrics = test_config(name, _compile, data_dev)
         if metrics:
             results.append(("COPRO", cfg, metrics))
 
@@ -162,7 +188,7 @@ def sweep_bsfs(
                 metric_threshold=1,
             ).compile(predict, trainset=data_train)
 
-        metrics = test_config(name, _compile, data_dev, POSITIVE_LABEL)
+        metrics = test_config(name, _compile, data_dev)
         if metrics:
             results.append(("BSFS", cfg, metrics))
 
@@ -180,8 +206,10 @@ def main():
     args = parser.parse_args()
 
     examples = load_data()
-    data_train, data_dev, _ = stratified_split(examples, TRAIN_FRAC, DEV_FRAC, SPLIT_SEED)
-    print_split_summary({"Train": data_train, "Dev": data_dev})
+    data_train, data_dev, _ = stratified_split(
+        examples, TRAIN_FRAC, DEV_FRAC, SPLIT_SEED, label_attr=OUTPUT_FIELD,
+    )
+    print_split_summary({"Train": data_train, "Dev": data_dev}, label_attr=OUTPUT_FIELD)
 
     dspy.configure(
         lm=dspy.LM(model=INFERENCE_MODEL, temperature=1.0, max_tokens=16000)
@@ -190,9 +218,9 @@ def main():
     # Replace with your Signature
     predict = dspy.Predict(dspy.Signature)
 
-    gepa_metric = make_gepa_metric(POSITIVE_LABEL, NEGATIVE_LABEL, weights=RECALL_WEIGHTS)
-    simple_metric = make_simple_metric(POSITIVE_LABEL, NEGATIVE_LABEL, weights=RECALL_WEIGHTS)
-    accuracy_metric = make_accuracy_metric()
+    gepa_metric = make_classification_gepa_metric("APPROVED", "REJECTED", weights=RECALL_WEIGHTS)
+    simple_metric = make_classification_metric("APPROVED", "REJECTED", weights=RECALL_WEIGHTS)
+    accuracy_metric = make_accuracy_metric(output_field=OUTPUT_FIELD)
 
     all_results = []
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -209,18 +237,22 @@ def main():
         print("\n=== BSFS SWEEP ===")
         all_results.extend(sweep_bsfs(predict, data_train, data_dev, accuracy_metric))
 
-    # Sort by recall then precision
-    all_results.sort(key=lambda x: (-x[2]["recall"], -x[2]["precision"]))
+    # Sort by configured metrics
+    all_results.sort(key=lambda x: (
+        -x[2].get(SORT_METRIC, 0),
+        -x[2].get(SECONDARY_SORT, 0),
+    ))
 
     print(f"\n{'='*80}")
-    print("SWEEP RESULTS (sorted by recall)")
+    print(f"SWEEP RESULTS (sorted by {SORT_METRIC})")
     print(f"{'='*80}")
     for optimizer, cfg, metrics in all_results:
         cfg_str = " ".join(f"{k}={v}" for k, v in cfg.items())
-        print(
-            f"  {optimizer:<8} {cfg_str:<40} "
-            f"R={metrics['recall']:.1%} P={metrics['precision']:.1%} F1={metrics['f1']:.3f}"
+        metric_str = " ".join(
+            f"{col[0].upper()}={metrics.get(col, 'N/A'):.1%}" if isinstance(metrics.get(col), float) else f"{col[0].upper()}={metrics.get(col, 'N/A')}"
+            for col in DISPLAY_METRICS
         )
+        print(f"  {optimizer:<8} {cfg_str:<40} {metric_str}")
 
     out_path = OUTPUT_DIR / f"sweep_{args.optimizer}_results.json"
     serializable = [
@@ -228,7 +260,7 @@ def main():
         for opt, cfg, m in all_results
     ]
     with out_path.open("w", encoding="utf-8") as f:
-        json.dump(serializable, f, indent=2)
+        json.dump(serializable, f, indent=2, default=str)
     print(f"\nSaved to {out_path}")
 
 

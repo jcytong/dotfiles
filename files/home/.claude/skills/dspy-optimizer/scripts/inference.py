@@ -9,6 +9,11 @@ Usage as CLI:
     python inference.py --model pretrained/gepa_model.json --input "some text"
 
 Usage as library:
+    from inference import Predictor
+    model = Predictor("pretrained/gepa_model.json")
+    result = model.predict(field_1="some text")
+
+    # Backward-compatible alias:
     from inference import Classifier
     clf = Classifier("pretrained/gepa_model.json")
     result = clf.predict(field_1="some text")
@@ -30,17 +35,23 @@ INFERENCE_MODEL = "openai/gpt-4o"
 INFERENCE_TEMPERATURE = 1.0
 INFERENCE_MAX_TOKENS = 16000
 
+# Output fields — which fields to extract from predictions.
+# Classification: ["status", "confidence", "reasoning"]
+# QA: ["answer", "reasoning"]
+# Extraction: ["entities", "reasoning"]
+OUTPUT_FIELDS = ["status", "confidence", "reasoning"]
+
 # ── END CONFIGURATION ────────────────────────────────────────────────────────
 
 
-class Classifier:
+class Predictor:
     """
-    Production classifier that loads a pretrained DSPy model.
+    Production predictor that loads a pretrained DSPy model.
 
     Usage:
-        clf = Classifier("pretrained/gepa_model.json")
-        result = clf.predict(field_1="input text")
-        print(result["status"], result["confidence"], result["reasoning"])
+        model = Predictor("pretrained/gepa_model.json")
+        result = model.predict(field_1="input text")
+        print(result)  # {"status": "APPROVED", "confidence": 0.92, "reasoning": "..."}
     """
 
     def __init__(
@@ -49,10 +60,13 @@ class Classifier:
         model: str = INFERENCE_MODEL,
         temperature: float = INFERENCE_TEMPERATURE,
         max_tokens: int = INFERENCE_MAX_TOKENS,
+        output_fields: List[str] = None,
     ):
         model_path = Path(model_path)
         if not model_path.exists():
             raise FileNotFoundError(f"Model not found: {model_path}")
+
+        self._output_fields = output_fields or OUTPUT_FIELDS
 
         dspy.configure(
             lm=dspy.LM(model=model, temperature=temperature, max_tokens=max_tokens)
@@ -70,18 +84,18 @@ class Classifier:
             **inputs: Keyword arguments matching your Signature's InputFields.
 
         Returns:
-            Dict with at least "status", "confidence", "reasoning".
+            Dict with the configured OUTPUT_FIELDS.
         """
         pred = self._prog(**inputs)
-        return {
-            "status": pred.status,
-            "confidence": getattr(pred, "confidence", None),
-            "reasoning": getattr(pred, "reasoning", ""),
-        }
+        return {field: getattr(pred, field, None) for field in self._output_fields}
 
     def predict_batch(self, examples: List[Dict[str, str]]) -> List[Dict[str, Any]]:
         """Run predictions on a list of input dicts."""
         return [self.predict(**ex) for ex in examples]
+
+
+# Backward-compatible alias
+Classifier = Predictor
 
 
 def main():
@@ -92,7 +106,7 @@ def main():
     parser.add_argument("--input-field", default="field_1", help="Field name for --input (default: field_1)")
     args = parser.parse_args()
 
-    clf = Classifier(args.model)
+    predictor = Predictor(args.model)
 
     if args.input_json:
         inputs = json.loads(args.input_json)
@@ -102,7 +116,7 @@ def main():
         parser.error("Provide --input or --input-json")
         return
 
-    result = clf.predict(**inputs)
+    result = predictor.predict(**inputs)
     print(json.dumps(result, indent=2, ensure_ascii=False))
 
 

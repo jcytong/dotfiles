@@ -12,7 +12,7 @@ Usage:
 
 import argparse
 from pathlib import Path
-from typing import List
+from typing import Any, Callable, Dict, List
 
 import dspy
 from dspy.teleprompt import GEPA, COPRO, BootstrapFewShot
@@ -24,14 +24,29 @@ from data_utils import load_from_csv, print_split_summary, stratified_split
 from metrics import (
     RECALL_WEIGHTS,
     make_accuracy_metric,
-    make_gepa_metric,
-    make_simple_metric,
+    make_classification_gepa_metric,
+    make_classification_metric,
 )
 
 # ── CONFIGURE THESE ──────────────────────────────────────────────────────────
 
-POSITIVE_LABEL = "APPROVED"
-NEGATIVE_LABEL = "REJECTED"
+# Output field — the name of the field your Signature produces as its main output.
+# Classification: "status"  |  QA: "answer"  |  Extraction: "entities"
+OUTPUT_FIELD = "status"
+
+# Metric functions — configure for your task.
+# Classification defaults:
+GEPA_METRIC = make_classification_gepa_metric("APPROVED", "REJECTED", weights=RECALL_WEIGHTS)
+SIMPLE_METRIC = make_classification_metric("APPROVED", "REJECTED", weights=RECALL_WEIGHTS)
+ACCURACY_METRIC = make_accuracy_metric(output_field=OUTPUT_FIELD)
+#
+# Generic example (uncomment):
+# from metrics import make_gepa_metric_from_fn, make_metric_from_fn
+# def my_score(gold, pred): ...
+# def my_feedback(gold, pred, score): ...
+# GEPA_METRIC = make_gepa_metric_from_fn(my_score, my_feedback)
+# SIMPLE_METRIC = make_metric_from_fn(my_score)
+# ACCURACY_METRIC = make_metric_from_fn(my_score)
 
 INFERENCE_MODEL = "openai/gpt-4o"
 REFLECTION_MODEL = "openai/gpt-4o"
@@ -57,10 +72,9 @@ def build_gepa(
 ) -> dspy.Module:
     """Build production GEPA model with heavy budget."""
     reflection_lm = dspy.LM(model=REFLECTION_MODEL, temperature=1.0, max_tokens=32000)
-    gepa_metric = make_gepa_metric(POSITIVE_LABEL, NEGATIVE_LABEL, weights=RECALL_WEIGHTS)
 
     optimizer = GEPA(
-        metric=gepa_metric,
+        metric=GEPA_METRIC,
         auto="heavy",
         num_threads=32,
         track_stats=True,
@@ -77,9 +91,8 @@ def build_bsfs(
     data_train: List[dspy.Example],
 ) -> dspy.Module:
     """Build BootstrapFewShot model."""
-    accuracy_metric = make_accuracy_metric()
     optimizer = BootstrapFewShot(
-        metric=accuracy_metric,
+        metric=ACCURACY_METRIC,
         max_labeled_demos=16,
         max_bootstrapped_demos=4,
         metric_threshold=1,
@@ -92,9 +105,8 @@ def build_copro(
     data_train: List[dspy.Example],
 ) -> dspy.Module:
     """Build COPRO model."""
-    simple_metric = make_simple_metric(POSITIVE_LABEL, NEGATIVE_LABEL, weights=RECALL_WEIGHTS)
     optimizer = COPRO(
-        metric=simple_metric,
+        metric=SIMPLE_METRIC,
         depth=4,
         breadth=6,
         init_temperature=0.0,
@@ -112,8 +124,10 @@ def main():
     args = parser.parse_args()
 
     examples = load_data()
-    data_train, data_dev, _ = stratified_split(examples, TRAIN_FRAC, DEV_FRAC, SPLIT_SEED)
-    print_split_summary({"Train": data_train, "Dev": data_dev})
+    data_train, data_dev, _ = stratified_split(
+        examples, TRAIN_FRAC, DEV_FRAC, SPLIT_SEED, label_attr=OUTPUT_FIELD,
+    )
+    print_split_summary({"Train": data_train, "Dev": data_dev}, label_attr=OUTPUT_FIELD)
 
     dspy.configure(
         lm=dspy.LM(model=INFERENCE_MODEL, temperature=1.0, max_tokens=16000)

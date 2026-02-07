@@ -30,7 +30,7 @@ compiled = optimizer.compile(predict, trainset=data_train, valset=data_dev)
 - `max_full_evals`: Manual budget (e.g., `5` = 5 full passes over train+val). Alternative to `auto`
 - `reflection_lm`: Separate strong LM for reflection. Required (or provide `instruction_proposer`)
 - `reflection_minibatch_size`: Number of feedback examples per reflection batch (default: `3`, recommended: `3-8`)
-- `candidate_selection_strategy`: `"pareto"` (explores recall-precision tradeoff) or `"current_best"` (single metric)
+- `candidate_selection_strategy`: `"pareto"` (explores multi-objective tradeoff) or `"current_best"` (optimizes single metric)
 - `use_merge`: Enable merge-based optimization combining best candidates (default: `True`)
 - `max_merge_invocations`: Cap on merge operations (default: `5`)
 - `skip_perfect_score`: Skip reflection on already-perfect examples (default: `True`)
@@ -47,14 +47,14 @@ def my_gepa_metric(gold, pred, trace=None, pred_name=None, pred_trace=None):
     return dspy.Prediction(score=score, feedback=feedback)
 ```
 
-**When to use:** Default choice for all classification tasks. Especially strong when you can write rich textual feedback explaining prediction failures.
+**When to use:** Default choice for any pipeline. Especially strong when you can write rich textual feedback explaining prediction failures. Works with classification, QA, extraction, summarization, or any task with a scorable metric.
 
 ### 2. Baseline Predictor
 
 Raw `dspy.Predict(Signature)` with no optimization. Run this first to establish a performance floor.
 
 ```python
-predict = dspy.Predict(MyClassifier)
+predict = dspy.Predict(MyPipeline)
 # No compilation needed
 ```
 
@@ -149,7 +149,7 @@ compiled = optimizer.compile(predict, trainset=data_train, eval_kwargs={})
 
 **Hyperparameters:** `depth` (grid: `[1,2,3,4]`), `breadth` (grid: `[2,3,4,6]`), `init_temperature` (grid: `[0.0, 0.3, 1.4]`)
 
-**When to use:** Specific metric optimization (recall vs precision). The `eval_kwargs={}` parameter is required.
+**When to use:** Targeted metric optimization. The `eval_kwargs={}` parameter is required.
 
 ### 9. SIMBA (Stochastic Mini-Batch Adaptation)
 
@@ -207,17 +207,13 @@ Need quick baseline / sanity check?
 Need best single non-GEPA model?
   -> BootstrapFewShot (16 labeled, 4 boot)
 
-Need high recall (don't miss positives)?
-  -> GEPA with recall-priority feedback metric (default)
-  -> Fallback: COPRO with recall_metric
-
-Need high precision (minimize false positives)?
-  -> GEPA with precision-priority feedback metric
-  -> Fallback: COPRO with precision_metric
+Want to optimize for your task metric?
+  -> GEPA with a custom feedback metric (start here)
+  -> Fallback: COPRO with your metric function
 
 Need best overall performance?
   -> GEPA (start here, benchmark others against it)
-  -> If others outperform: Union strategy: BSFS (high conf) + COPRO (lower conf)
+  -> If others outperform: Ensemble strategy combining complementary models
 
 Input varies widely, need adaptive demos?
   -> KNNFewShot
