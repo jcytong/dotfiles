@@ -38,15 +38,61 @@ See [workflow.md](references/workflow.md) for full example.
 
 ### outside-in [feature]
 
-Develop a feature working from user-facing layer inward.
+Develop a feature using double-loop TDD, working from user-facing layer inward.
 
-**Process:**
-1. Write acceptance test (Given/When/Then)
-2. Run it - watch it fail
-3. Identify needed collaborators
-4. Use `/goos discover` for each collaborator
-5. Use `/tdd` to implement each behavior
-6. Acceptance test passes when complete
+```
+┌─────────────────────────────────────────────────────────────┐
+│  OUTER LOOP (Acceptance)                                    │
+│                                                             │
+│  1. Write a failing acceptance test                         │
+│                                                             │
+│     ┌─────────────────────────────────────────────────┐     │
+│     │  INNER LOOP (Unit)                              │     │
+│     │                                                 │     │
+│     │  2. Write a failing unit test                   │     │
+│     │  3. Make the test pass (minimum code)           │     │
+│     │  4. Refactor                                    │     │
+│     │                                                 │     │
+│     │  Repeat 2-4 until acceptance test passes        │     │
+│     └─────────────────────────────────────────────────┘     │
+│                                                             │
+│  5. Acceptance test passes → next feature slice             │
+│                                                             │
+│  Repeat 1-5 for each feature slice                          │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Phase 1 — Outer Loop Entry:**
+1. Identify the thinnest feature slice to implement
+2. Write a failing acceptance test describing the slice from the outside
+   - See [acceptance-test-writer.md](references/acceptance-test-writer.md) for procedure
+3. Run it — confirm it fails for the RIGHT reason (missing implementation, not broken test)
+
+**Phase 2 — Inner Loop (repeat until acceptance test passes):**
+4. Analyze the acceptance test failure — what's the next smallest piece needed?
+5. Write a failing unit test for that piece
+   - See [unit-test-writer.md](references/unit-test-writer.md) for procedure
+6. Make it pass with minimum code
+   - See [implementer.md](references/implementer.md) for procedure
+7. Refactor while green
+   - See [refactorer.md](references/refactorer.md) for procedure
+8. Run the acceptance test — if still failing, go to step 4
+
+**Phase 3 — Completion:**
+9. Acceptance test passes. Report the result.
+10. Use `/goos discover` if collaborator interfaces need refinement.
+
+**Communicate at each phase transition:**
+- Entering outer loop: "Writing acceptance test for: [scenario]"
+- Acceptance test fails: "Fails: [reason]. Starting inner loop."
+- Each inner iteration: "Unit test: [what] → Green → Refactored"
+- Acceptance test passes: "Acceptance test passes. Slice complete."
+
+**Watch for problems:**
+- **Slice too thick** — if inner loop takes >5-7 unit test cycles, suggest splitting
+- **Test hard to write** — surface as design feedback, not just a testing problem
+- **Implementation ahead of tests** — if writing code no test demands, stop
+- **Refactoring breaks things** — revert and take smaller steps
 
 See [principles.md](references/1-principles.md#outside-in-development) for details.
 
@@ -84,3 +130,7 @@ See [when-to-mock.md](references/when-to-mock.md) for decision guidance.
 - [when-to-mock.md](references/when-to-mock.md) - Mocking decisions
 - [test-granularity.md](references/test-granularity.md) - Choosing test level
 - [refactor-or-not.md](references/refactor-or-not.md) - When to refactor
+- [acceptance-test-writer.md](references/acceptance-test-writer.md) - Writing failing acceptance tests
+- [unit-test-writer.md](references/unit-test-writer.md) - Writing failing unit tests
+- [implementer.md](references/implementer.md) - Making tests pass with minimum code
+- [refactorer.md](references/refactorer.md) - Improving design while green
