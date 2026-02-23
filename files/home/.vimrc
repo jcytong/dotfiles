@@ -135,7 +135,7 @@ syn on
 set synmaxcol=200
 let mapleader=","
 set background=dark
-colorscheme solarized
+silent! colorscheme solarized
 set encoding=utf-8
 if has("mac") || has("macunix")
   set lines=49
