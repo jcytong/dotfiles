@@ -136,19 +136,29 @@ set synmaxcol=200
 let mapleader=","
 set background=dark
 colorscheme solarized
+set encoding=utf-8
 if has("mac") || has("macunix")
   set lines=49
   set columns=90
   set guifont=Hack:h7
   let g:Powerline_symbols = 'fancy'
-  set encoding=utf-8
   set fillchars+=stl:\ ,stlnc:\
   if !has('nvim')
     set term=xterm-256color
     set termencoding=utf-8
   endif
 endif
-set rtp+=/opt/homebrew/opt/fzf
+
+" fzf runtime path (auto-detect)
+if isdirectory('/opt/homebrew/opt/fzf')
+  set rtp+=/opt/homebrew/opt/fzf
+elseif isdirectory('/usr/local/opt/fzf')
+  set rtp+=/usr/local/opt/fzf
+elseif isdirectory('/usr/share/doc/fzf/examples')
+  set rtp+=/usr/share/doc/fzf/examples
+elseif isdirectory(expand('~/.fzf'))
+  set rtp+=~/.fzf
+endif
 
 " CoC extensions
 let g:coc_global_extensions = ['coc-tsserver']
@@ -216,7 +226,7 @@ if !exists("my_auto_commands_loaded")
 com! Bdall bufdo bd
 "com! Bd call Closebufferkeeptab()
 com! Be call Closebufferopendir()
-com! PrettyJson %!python -m json.tool
+com! PrettyJson %!python3 -m json.tool
 
 """"""""""""""""""""""""""""""""""" Mappings """""""""""""""""""""""""""""""""""
 " bind K to grep word under cursor
@@ -235,12 +245,23 @@ map <S-Left> :tabprev <CR>
 "nmap <C-J> <C-F>
 "nmap <C-K> <C-B>
 
-nnoremap ∆ :m .+1<CR>==
-nnoremap ˚ :m .-2<CR>==
-inoremap ∆ <Esc>:m .+1<CR>==gi
-inoremap ˚ <Esc>:m .-2<CR>==gi
-vnoremap ∆ :m '>+1<CR>gv=gv
-vnoremap ˚ :m '<-2<CR>gv=gv
+" Move lines up/down with Alt+j/k
+if has("mac") || has("macunix")
+  " macOS Terminal sends special chars for Option+j/k
+  nnoremap ∆ :m .+1<CR>==
+  nnoremap ˚ :m .-2<CR>==
+  inoremap ∆ <Esc>:m .+1<CR>==gi
+  inoremap ˚ <Esc>:m .-2<CR>==gi
+  vnoremap ∆ :m '>+1<CR>gv=gv
+  vnoremap ˚ :m '<-2<CR>gv=gv
+else
+  nnoremap <A-j> :m .+1<CR>==
+  nnoremap <A-k> :m .-2<CR>==
+  inoremap <A-j> <Esc>:m .+1<CR>==gi
+  inoremap <A-k> <Esc>:m .-2<CR>==gi
+  vnoremap <A-j> :m '>+1<CR>gv=gv
+  vnoremap <A-k> :m '<-2<CR>gv=gv
+endif
 
 " Shortcut to rapidly toggle `set list`
 "nmap <leader>l :set list!<CR>
@@ -297,9 +318,11 @@ let g:indentLine_char='¦'
 nmap <silent> <Leader>\ :NERDTreeToggle<CR>
 nmap <silent> <Leader>\| :NERDTreeToggle %:p:h<CR>
 
-" NERDCommenter Command-/ to toggle comments
-map <D-/> <plug>NERDCommenterToggle<CR>
-imap <D-/> <Esc><plug>NERDCommenterToggle<CR>i
+" NERDCommenter Command-/ to toggle comments (macOS GUI only)
+if has("gui_macvim")
+  map <D-/> <plug>NERDCommenterToggle<CR>
+  imap <D-/> <Esc><plug>NERDCommenterToggle<CR>i
+endif
 map <Leader>/ <plug>NERDCommenterToggle<CR>
 imap <Leader>/ <Esc><plug>NERDCommenterToggle<CR>i
 
@@ -340,9 +363,11 @@ nmap <Leader>f :CtrlPMixed<CR>
 autocmd BufNewFile,BufReadPost *.coffee setl shiftwidth=2 expandtab
 autocmd BufNewFile,BufReadPost *.coffee setl foldmethod=indent nofoldenable 
 
-" dash.vim
+" dash.vim (macOS only)
 " https://github.com/rizzatti/dash.vim
-map <Leader>d :call Dash<CR>
+if has("mac") || has("macunix")
+  map <Leader>d :call Dash<CR>
+endif
 
 " vim-rspec
 " https://github.com/thoughtbot/vim-rspec/blob/master/README.md
@@ -393,36 +418,13 @@ function! MyDiff()
      let opt = opt . "-b "
     endif
 
-    let commandpath = ""
-
-    if has("win32") || has("win16")
-       let commandpath = "C:\\_vim\\vim71\\diff"
-    elseif has("mac") || has("macunix") || has("unix")
-       let commandpath = "/usr/bin/diff"
-    elseif has("win32unix")
-       let commandpath = "C:\\cygwin\\bin\\diff"
-    else
-        echo "Unknown version of OS"
-        break
-    endif
-
-    silent execute "!" . commandpath . " -a " . opt . v:fname_in 
+    silent execute "!/usr/bin/diff -a " . opt . v:fname_in
     \ . " " . v:fname_new . " > " . v:fname_out
 endfunction
 
 set patchexpr=MyPatch()
 function! MyPatch()
-    let commandpath = ""
-
-    if has("win32") || has("win16")
-       let commandpath = "E:\\vim\\vim71\\patch"
-    elseif has("mac") || has("macunix") || has("unix")
-       let commandpath = "/usr/bin/patch"
-    elseif has("win32unix")
-       let commandpath = "E:\\cygwin\\bin\\patch"
-    else
-        echo "Unknown version of OS"
-        break
+    silent execute "!/usr/bin/patch -o " . v:fname_out . " " . v:fname_in . " < " . v:fname_diff
 endfunction
 
 function! Gotononamebuffer()
@@ -472,11 +474,7 @@ endfunction
 "------------------------------------------------------------------------------"
 """"""""""""""""""""""""""""""" Code Completion """"""""""""""""""""""""""""""""
 set complete=],.,b,w,t,k
-if has("win32") || has("win16") || has("win32unix")
-    set dictionary=C:\\_vim\_vimKeywords
-elseif has("mac") || has("macunix") || has("unix")
-    set dictionary=~/.vimKeywords
-endif
+set dictionary=~/.vimKeywords
 
 " Set up tab for code completion
 inoremap  =InsertTabWrapper ("forward")
