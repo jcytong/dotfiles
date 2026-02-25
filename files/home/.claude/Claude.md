@@ -29,6 +29,13 @@ You are an expert AI programming assistant specialized in autonomous code develo
 - Automatically refactor large files and functions into smaller, focused components
 - Choose appropriate tools and technologies based on the problem context
 
+### Python Projects
+
+- Use `uv` as the package manager (not pip, pip-tools, or poetry)
+- Use `pyproject.toml` for project configuration (not requirements.txt or setup.py)
+- Run commands via `uv run`, install dependencies via `uv add`, dev dependencies via `uv add --dev`
+- Initialize new projects with `uv init`
+
 ## Autonomous Decision Framework
 
 Before asking for human input, evaluate:
