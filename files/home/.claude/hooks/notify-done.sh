@@ -6,10 +6,10 @@ message="Claude is done"
 
 # OSC 9 triggers an iTerm2 Notification Center banner
 if [ -n "$TMUX" ]; then
-    printf '\ePtmux;\e\e]9;%s\a\e\\' "$message"
+    printf '\ePtmux;\e\e]9;%s\a\e\\' "$message" > /dev/tty
 else
-    printf '\e]9;%s\a' "$message"
+    printf '\e]9;%s\a' "$message" > /dev/tty
 fi
 
 # BEL triggers iTerm2 bell sound
-printf '\a'
+printf '\a' > /dev/tty
