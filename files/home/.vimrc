@@ -14,6 +14,7 @@ call plug#begin('~/.vim/plugged')
  
  " Always load
  "Plug 'neoclide/coc.nvim', {'branch': 'release'}
+ Plug 'ojroques/vim-oscyank', {'branch': 'main'}
  Plug 'tomasiser/vim-code-dark'
  Plug 'altercation/vim-colors-solarized'
  Plug 'bling/vim-airline'
@@ -234,6 +235,18 @@ nnoremap K :grep! "\b<C-R><C-W>\b"<CR>:cw<CR>
 
 "MOVEMENT
 "--------
+" OSC 52 yank — every yank goes to local clipboard via terminal
+autocmd TextYankPost * if v:event.operator is 'y' && v:event.regname is '' | execute 'OSCYankRegister "' | endif
+" Yank to system clipboard explicitly with <leader>y
+nmap <leader>y <Plug>OSCYankOperator
+vmap <leader>y <Plug>OSCYankVisualSelection
+
+" Navigate between splits with C-h/j/k/l (also handled by vim-tmux-navigator in tmux)
+nnoremap <C-h> <C-w>h
+nnoremap <C-j> <C-w>j
+nnoremap <C-k> <C-w>k
+nnoremap <C-l> <C-w>l
+
 " Fix weird error when arrow key maps incorrectly when using vim with tmux
 " http://superuser.com/questions/237751/messed-up-keys-in-vim-when-running-inside-tmux
 map <Esc>[B <Down>
@@ -241,9 +254,6 @@ map <Esc>[B <Down>
 " Go to previous/next tab with Shift-left/right arrow respectively
 map <S-Right> :tabnext <CR>
 map <S-Left> :tabprev <CR>
-" Map Ctrl-j,k for page up/down
-"nmap <C-J> <C-F>
-"nmap <C-K> <C-B>
 
 " Move lines up/down with Alt+j/k
 if has("mac") || has("macunix")
