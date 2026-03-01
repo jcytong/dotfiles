@@ -44,9 +44,6 @@ export GIT_EDITOR=vim
 export LC_ALL=en_US.UTF-8
 export LANG=en_US.UTF-8
 
-# ── Machine-specific config (API keys, PATH, tool inits) ──
-[[ -f ~/.zshrc.local ]] && source ~/.zshrc.local
-
 portopen() {
   lsof -nP -iTCP:$1 | grep LISTEN
 }
@@ -203,3 +200,7 @@ wt() {
   # Confirm success
   echo "Worktree '$branch_name' created at $worktree_path and checked out."
 }
+
+# ── Machine-specific config (API keys, PATH, tool inits) ──
+# Sourced last so it can override anything above
+[[ -f ~/.zshrc.local ]] && source ~/.zshrc.local
