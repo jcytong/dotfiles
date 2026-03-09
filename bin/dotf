@@ -4,9 +4,40 @@ set -e
 DOTFILES_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 FILES_DIR="$DOTFILES_DIR/files/home"
 
+# Directories to symlink as a whole (not file-by-file)
+DIR_LINKS=".claude/skills"
+
 link_files() {
+  # Phase 1: Link whole directories listed in DIR_LINKS
+  for dir in $DIR_LINKS; do
+    source="$FILES_DIR/$dir"
+    target="$HOME/$dir"
+    [ -d "$source" ] || continue
+
+    mkdir -p "$(dirname "$target")"
+
+    if [ -L "$target" ]; then
+      rm "$target"
+    elif [ -d "$target" ]; then
+      echo "Replacing $dir/ directory with symlink"
+      rm -rf "$target"
+    fi
+
+    ln -s "$source" "$target"
+    echo "Linked $dir/ (directory)"
+  done
+
+  # Phase 2: Link individual files, skipping dirs handled above
   find "$FILES_DIR" -type f | while read -r file; do
     relative="${file#$FILES_DIR/}"
+
+    # Skip files inside directory-linked paths
+    skip=false
+    for dir in $DIR_LINKS; do
+      case "$relative" in "$dir/"*) skip=true; break;; esac
+    done
+    $skip && continue
+
     target="$HOME/$relative"
 
     mkdir -p "$(dirname "$target")"
