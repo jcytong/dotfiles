@@ -45,6 +45,7 @@
     "superpowers@claude-plugins-official": true,
     "qmd@qmd": true
   },
+  "effortLevel": "high",
   "skipDangerousModePermissionPrompt": true,
-  "effortLevel": "high"
+  "voiceEnabled": true
 }
