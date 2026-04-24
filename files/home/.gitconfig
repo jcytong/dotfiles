@@ -1,6 +1,5 @@
 [user]
-	name = Johnny Tong
-	email = hi@johnnytong.local
+	name = deploy@terrain-web-app
 [color]
 	status = auto
 	diff = auto
