@@ -175,8 +175,11 @@ nmap <Leader>f :CtrlPMixed<CR>
 
 " ── Buffers ──
 com! Bdall bufdo bd
+com! Bd call Closebufferkeeptab()
 com! Be call Closebufferopendir()
 com! PrettyJson %!python3 -m json.tool
+
+cmap bdd bn | bd #
 
 map <Leader>bda :Bdall <CR>
 map <Leader>dir :echo expand("%:p:h") <CR>
@@ -185,6 +188,7 @@ map <Leader>p :bp <CR>
 map <leader>q :bp<bar>sp<bar>bn<bar>bd<CR>
 map <Leader>o :a<CR><CR>.<CR>
 map <Leader>O :i<CR><CR>.<CR>
+map <Leader>r "_cw<ESC>p
 map <Leader><ESC> :nohlsearch <CR>
 
 " Visual search with //

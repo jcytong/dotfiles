@@ -63,6 +63,36 @@ Only escalate to human if the answer to #3 is YES or if the operation is destruc
 ### gh
 - GitHub CLI for PRs/CI/releases. Given issue/PR URL (or `/pull/5`): use `gh`, not web search.
 - Examples: `gh issue view <url> --comments -R owner/repo`, `gh pr view <url> --comments --files -R owner/repo`.
+
+### gws (Google Workspace CLI)
+
+`gws` is the CLI for accessing the user's Google Workspace (Drive, Docs, Sheets, Gmail, Calendar, Slides, Tasks, People, Chat, Forms, Keep, Meet, Apps Script). **Use this whenever the user references anything in their Google Workspace** — documents, emails, spreadsheets, calendar events, contacts. Do not ask the user to paste content that `gws` can fetch directly.
+
+**Shape:** `gws <service> <resource> [sub-resource] <method> [flags]`
+
+**Discovery:**
+- `gws --help` — list services
+- `gws <service> --help` — list resources/methods for a service
+- `gws schema <service.resource.method>` — full params schema for a specific call
+
+**Common flags:**
+- `--params '<JSON>'` — query/URL params (e.g., `fileId`, `q`, `pageSize`)
+- `--json '<JSON>'` — request body for POST/PATCH/PUT
+- `--format json|table|yaml|csv` — output format
+- `--page-all` — auto-paginate (NDJSON output)
+- `--output <PATH>` — for binary responses
+
+**Common recipes:**
+- Find a Drive file by name: `gws drive files list --params '{"q": "name contains '\''foo'\''", "pageSize": 10}'`
+- Read a Google Doc (as structured JSON): `gws docs documents get --params '{"documentId": "..."}'`
+- Export a Doc as plain text: `gws drive files export --params '{"fileId": "...", "mimeType": "text/plain"}'`
+- Read a Sheet: `gws sheets spreadsheets values get --params '{"spreadsheetId": "...", "range": "Sheet1"}'`
+- List recent Gmail: `gws gmail users messages list --params '{"userId": "me", "q": "from:..."}'`
+- Get a calendar event: `gws calendar events get --params '{"calendarId": "primary", "eventId": "..."}'`
+
+**When the user gives you a Google link**, extract the ID from the URL (e.g., `/document/d/<ID>/edit`) and call `gws` directly rather than asking them to paste.
+
+**When uncertain about params for a call**, run `gws schema <service.resource.method>` before guessing.
 ## Safety Protocols
 
 ALWAYS request explicit confirmation before:
