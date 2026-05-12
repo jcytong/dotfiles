@@ -4,6 +4,11 @@
 
 message="Claude is done"
 
+# No controlling terminal (e.g. headless VPS, detached session) — nothing to notify.
+if ! { : > /dev/tty; } 2>/dev/null; then
+    exit 0
+fi
+
 # OSC 9 triggers an iTerm2 Notification Center banner
 if [ -n "$TMUX" ]; then
     printf '\ePtmux;\e\e]9;%s\a\e\\' "$message" > /dev/tty
