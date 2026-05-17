@@ -179,7 +179,7 @@ com! Bd call Closebufferkeeptab()
 com! Be call Closebufferopendir()
 com! PrettyJson %!python3 -m json.tool
 
-cmap bdd bn | bd #
+cmap bdd bn <bar> bd #
 
 map <Leader>bda :Bdall <CR>
 map <Leader>dir :echo expand("%:p:h") <CR>
