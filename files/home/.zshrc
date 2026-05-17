@@ -55,7 +55,12 @@ br-name() {
   hub issue show --format '%I-%t' $1 | tr '[:upper:]' '[:lower:]' | sed 's/[[:space:]]\{2,\}/~/g' | sed 's/ /-/g';
 }
 
-alias ls='gls --color=auto'
+# Prefer GNU ls (gls on macOS via coreutils); fall back to system ls
+if (( $+commands[gls] )); then
+  alias ls='gls --color=auto'
+else
+  alias ls='ls --color=auto'
+fi
 alias dcom='docker compose'
 alias top10='du -sh * | sort -rh | head -n 10'
 alias glod='git log --graph --pretty="%Cgreen%h%Creset%Cblue%d%Creset %Cred%an%Creset: %s"'
