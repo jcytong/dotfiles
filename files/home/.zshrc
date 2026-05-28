@@ -212,3 +212,6 @@ wt() {
 # ── Machine-specific config (API keys, PATH, tool inits) ──
 # Sourced last so it can override anything above
 [[ -f ~/.zshrc.local ]] && source ~/.zshrc.local
+
+# bun completions
+[ -s "$HOME/.bun/_bun" ] && source "$HOME/.bun/_bun"
