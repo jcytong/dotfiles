@@ -1,4 +1,7 @@
 {
+  "permissions": {
+    "defaultMode": "auto"
+  },
   "hooks": {
     "PreToolUse": [
       {
@@ -45,15 +48,12 @@
     "superpowers@claude-plugins-official": true,
     "qmd@qmd": true
   },
-  "effortLevel": "high",
+  "effortLevel": "medium",
   "voice": {
     "enabled": true,
     "mode": "hold"
   },
   "skipDangerousModePermissionPrompt": true,
-  "voiceEnabled": true,
   "skipAutoPermissionPrompt": true,
-  "permissions": {
-    "defaultMode": "auto"
-  }
+  "voiceEnabled": true
 }
