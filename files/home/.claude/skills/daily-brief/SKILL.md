@@ -72,7 +72,7 @@ slack recap --tz America/New_York --json
 
 **2. Fireflies — today's meetings**
 ```bash
-fireflies python3 ~/.claude/skills/fireflies-transcripts/scripts/fireflies.py list \
+fireflies list \
   --from <start_iso_utc> --to <end_iso_utc>
 ```
 
@@ -101,7 +101,7 @@ python3 ~/.claude/skills/daily-brief/scripts/daily_brief.py open-cards
 
 Then sequentially fetch summaries for each Fireflies meeting (one call per meeting):
 ```bash
-fireflies python3 ~/.claude/skills/fireflies-transcripts/scripts/fireflies.py get <id> --no-sentences
+fireflies get <id> --no-sentences
 ```
 
 (Parallelize across meetings if there are >2.)
