@@ -1,17 +1,25 @@
 ---
-name: slack-messages
+name: slack
 description: Read/search Slack messages via the Slack Web API with a user token. Use when the user asks about Slack — "what did I say in #channel", "find my Slack messages about X", "list my channels", "show the thread", "search Slack for Y". Defaults to the user's own messages (from:@me) unless they explicitly broaden the scope. Triggers on "slack", "channel", "thread", "DM", "#channel-name". Read-only; sending is intentionally out of scope.
 ---
 
-# Slack messages
+# Slack
 
 Search and read the user's Slack workspace through the Slack Web API. The user is a workspace owner; this skill operates as them via a user token. Defaults bias toward "just my messages" so results stay relevant.
 
-## Setup (one-time, per user)
+This skill is shareable: it holds no PII. Every user installs the same two artifacts the first time they use it — an env file with their user token, and a shell wrapper that loads it and dispatches to the skill's Python script.
 
-This skill is shareable. Credentials live outside the repo in `~/.config/slack/.env` (mode 0600). The skill itself contains no PII.
+## Setup — Claude verifies this on first invocation
 
-### 1. Create a Slack app + user token
+**Preflight (run this first, every session):**
+
+```bash
+test -f ~/.config/slack/.env && test -x ~/.local/bin/slack && echo OK || echo MISSING
+```
+
+If the output is anything other than `OK`, **stop** and walk the user through whichever piece is missing below before any other operation. Never proceed to `search`/`history`/`recap` half-configured.
+
+### 1. Slack app + user token
 
 Slack user tokens (`xoxp-…`) come from a Slack app installed in the workspace. As a workspace owner:
 
@@ -23,39 +31,36 @@ Slack user tokens (`xoxp-…`) come from a Slack app installed in the workspace.
    - `users:read` — resolve user ids (optional but useful)
 3. **Install to Workspace**, copy the **User OAuth Token** (starts with `xoxp-`).
 
-Bot tokens (`xoxb-`) won't work for `from:@me` — search.messages requires a user token.
+Bot tokens (`xoxb-`) won't work for `from:@me` — `search.messages` requires a user token.
 
-### 2. Write the env file
-
-`~/.config/slack/.env` (mode 0600):
+### 2. Env file — `~/.config/slack/.env`
 
 ```bash
+mkdir -p ~/.config/slack && chmod 700 ~/.config/slack
+cat > ~/.config/slack/.env <<'EOF'
 SLACK_USER_TOKEN="xoxp-..."
-```
-
-```bash
-mkdir -p ~/.config/slack
-chmod 700 ~/.config/slack
-# write the file, then:
+EOF
 chmod 600 ~/.config/slack/.env
 ```
 
-### 3. Install the `slack` wrapper
+Never print, log, or copy the token.
 
-Create `~/.local/bin/slack` (chmod +x). It loads the token, then runs the script — so callers just type `slack <subcommand> ...`.
+### 3. Shell wrapper — `~/.local/bin/slack`
 
 ```bash
+mkdir -p ~/.local/bin
+cat > ~/.local/bin/slack <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 ENV_FILE="$HOME/.config/slack/.env"
 [ -f "$ENV_FILE" ] || { echo "slack: missing $ENV_FILE" >&2; exit 1; }
 set -a; source "$ENV_FILE"; set +a
-exec python3 "$HOME/.claude/skills/slack-messages/scripts/slack.py" "$@"
+exec python3 "$HOME/.claude/skills/slack/scripts/slack.py" "$@"
+EOF
+chmod +x ~/.local/bin/slack
 ```
 
-Verify: `slack whoami` should print the user + team.
-
-Never print, log, or copy the token.
+Make sure `~/.local/bin` is on the user's `PATH`. Verify with `slack whoami` — should print the authed user + team.
 
 ## Default "me" filter (IMPORTANT)
 
