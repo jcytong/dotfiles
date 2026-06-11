@@ -1,42 +1,58 @@
 ---
-name: fireflies-transcripts
+name: fireflies
 description: Find and extract Fireflies.ai meeting transcripts via the GraphQL API. Use when the user asks about a Fireflies meeting, transcript, summary, action items, or who said what in a meeting. By default narrows results to meetings where the user's own email(s) appear as a participant (configured via FIREFLIES_DEFAULT_PARTICIPANTS), unless the user explicitly broadens the scope. Triggers on "fireflies", "transcript for", "meeting on [date]", "what did [name] say in", "action items from", "summary of [meeting]".
 ---
 
-# Fireflies Transcripts
+# Fireflies
 
-## Setup (one-time, per user)
+This skill is shareable: it holds no PII. Every user installs the same two artifacts the first time they use it — an env file with their API key, and a shell wrapper that loads it and dispatches to the skill's Python script.
 
-This skill is shareable. Each user keeps their own credentials and default-filter emails in `~/.config/fireflies/.env`, which is loaded by the local `fireflies` bash wrapper. The skill itself contains no PII.
+## Setup — Claude verifies this on first invocation
 
-`~/.config/fireflies/.env` (mode 0600) should contain:
+**Preflight (run this first, every session):**
 
 ```bash
+test -f ~/.config/fireflies/.env && test -x ~/.local/bin/fireflies && echo OK || echo MISSING
+```
+
+If the output is anything other than `OK`, **stop** and walk the user through whichever piece is missing below before any other operation. Never proceed to `list`/`get`/`live` half-configured.
+
+### 1. Env file — `~/.config/fireflies/.env`
+
+```bash
+mkdir -p ~/.config/fireflies && chmod 700 ~/.config/fireflies
+cat > ~/.config/fireflies/.env <<'EOF'
 FIREFLIES_API_KEY="ff_xxxxxxxxxxxxxxxxxxxxxxxx"
 # Optional: comma-separated emails for the default participant filter.
 # Omit or leave empty to search across all meetings the API key can see.
 FIREFLIES_DEFAULT_PARTICIPANTS="me@company.com,me@personal.com"
+EOF
+chmod 600 ~/.config/fireflies/.env
 ```
 
-The `fireflies` wrapper requires `FIREFLIES_API_KEY`; `FIREFLIES_DEFAULT_PARTICIPANTS` is optional.
+`FIREFLIES_API_KEY` is required (get it at https://app.fireflies.ai/integrations/custom/fireflies); `FIREFLIES_DEFAULT_PARTICIPANTS` is optional. Never print, log, or copy the API key.
 
-If the user doesn't have the `fireflies` wrapper installed, instruct them to create `~/.local/bin/fireflies` (chmod +x) with:
+### 2. Shell wrapper — `~/.local/bin/fireflies`
 
 ```bash
+mkdir -p ~/.local/bin
+cat > ~/.local/bin/fireflies <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 ENV_FILE="$HOME/.config/fireflies/.env"
 [ -f "$ENV_FILE" ] || { echo "missing $ENV_FILE" >&2; exit 1; }
 set -a; source "$ENV_FILE"; set +a
-SCRIPT="$HOME/.claude/skills/fireflies-transcripts/scripts/fireflies.py"
+SCRIPT="$HOME/.claude/skills/fireflies/scripts/fireflies.py"
 [ "$#" -eq 0 ] && exec python3 "$SCRIPT" --help
 case "$1" in
   exec) shift; exec "$@" ;;        # escape hatch: `fireflies exec curl ...`
   *)    exec python3 "$SCRIPT" "$@" ;;
 esac
+EOF
+chmod +x ~/.local/bin/fireflies
 ```
 
-Never print, log, or copy the API key.
+Make sure `~/.local/bin` is on the user's `PATH`. Verify with `fireflies --help`.
 
 ## Default participant filter (IMPORTANT)
 
