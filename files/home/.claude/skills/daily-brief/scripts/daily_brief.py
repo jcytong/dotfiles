@@ -27,6 +27,7 @@ import datetime as _dt
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -90,6 +91,21 @@ def _require(value, env_name: str, what: str) -> None:
             f"daily-brief: {env_name} is not set. Add it to "
             f"~/.config/daily-brief/.env ({what}). See SKILL.md → Configuration."
         )
+
+
+def _has(cli: str) -> bool:
+    """True if `cli` is on PATH. Used to gate Fizzy/gws steps so the skill
+    degrades cleanly for users who don't have every backend installed."""
+    return shutil.which(cli) is not None
+
+
+def _skipped(reason: str, **extra) -> None:
+    """Print a clean JSON skip payload and exit 0. Used when an optional CLI
+    is missing — Claude reads the JSON and continues without that source
+    instead of seeing a traceback."""
+    payload = {"skipped": True, "reason": reason, **extra}
+    print(json.dumps(payload, indent=2))
+    sys.exit(0)
 # Sheet status → target fizzy column (anything else → Maybe? for triage)
 STATUS_TO_COLUMN = {
     "in progress": "in_progress",
@@ -195,6 +211,8 @@ def cmd_open_cards(args: argparse.Namespace) -> None:
 
     Returns cards in column `Maybe?` and `In Progress`, omitting closed cards.
     """
+    if not _has("fizzy"):
+        _skipped("fizzy CLI not installed — open-cards has no backend", cards=[])
     _require(BOARD_ID, "DAILY_BRIEF_FIZZY_BOARD_ID", "the Fizzy board cards are filed to")
     body = run_fizzy([
         "card", "list",
@@ -251,6 +269,10 @@ def cmd_file_cards(args: argparse.Namespace) -> None:
       3. Else: create card, then tag with [daily-brief, full-tag]
       4. If `column` ≠ default, move the card to that column
     """
+    if not _has("fizzy"):
+        # Drain stdin so the caller's pipe doesn't break, then skip cleanly.
+        sys.stdin.read()
+        _skipped("fizzy CLI not installed — Tier 1 cards not filed", filed=[])
     _require(BOARD_ID, "DAILY_BRIEF_FIZZY_BOARD_ID", "the Fizzy board cards are filed to")
     raw = sys.stdin.read().strip()
     if not raw:
@@ -383,6 +405,12 @@ def cmd_sync_sheet(args: argparse.Namespace) -> None:
     everything else → Maybe? for triage. Completed rows with no follow-up
     note are skipped.
     """
+    missing = [c for c in ("fizzy", "gws") if not _has(c)]
+    if missing:
+        _skipped(
+            f"sync-sheet needs both fizzy and gws on PATH; missing: {', '.join(missing)}",
+            created=0,
+        )
     _require(BOARD_ID, "DAILY_BRIEF_FIZZY_BOARD_ID", "the Fizzy board cards are filed to")
     _require(args.spreadsheet_id, "DAILY_BRIEF_SHEET_ID", "the Google Sheet to sync, or pass --spreadsheet-id")
     _require(args.owner, "DAILY_BRIEF_SHEET_OWNER", "the Owner-column value to match, or pass --owner")

@@ -22,18 +22,28 @@ Two modes — pick based on what the user asked for:
 
 For `sync-sheet`: just run the subcommand. It's not a synthesis pass — no brief, no Obsidian archive. Just import. Show the user the resulting `created`/`skipped` summary.
 
-## Setup the skill assumes is in place
+## Dependencies — preflight on every invocation
 
-The user already has these wrappers on PATH and authed:
+This skill stitches together four backend CLIs. **All are optional individually**; the skill degrades cleanly if one isn't installed, and only stops if *every* source CLI is missing (nothing to summarize). The helper at `~/.claude/skills/daily-brief/scripts/daily_brief.py` is always required.
 
-- `slack` — Slack user-token wrapper (see `slack-messages` skill)
-- `fireflies` — Fireflies wrapper (see `fireflies-transcripts` skill)
-- `gws` — Google Workspace CLI (Gmail, Drive, Calendar)
-- `fizzy` — Fizzy CLI
+Before Step 1, run:
 
-Plus this skill's helper at `~/.claude/skills/daily-brief/scripts/daily_brief.py`.
+```bash
+for c in gws slack fireflies fizzy; do command -v "$c" >/dev/null && echo "$c OK" || echo "$c MISSING"; done
+```
 
-If any wrapper is missing or unauthed, surface the specific failure and stop — don't proceed half-blind.
+Tell the user upfront which are MISSING and what's lost. Reference table:
+
+| CLI | What it adds | If MISSING |
+|---|---|---|
+| `gws` | Gmail, Calendar, Drive sections; sync-sheet sheet read | Drop those sections; skip sync-sheet entirely |
+| `slack` | Slack section (recap of conversations both sides) | Drop Slack section |
+| `fireflies` | Meetings section + per-meeting summaries | Drop Meetings section |
+| `fizzy` | Roll-forward open cards + Tier 1 filing + sync-sheet card creation | Surface Tier 1 in the brief only (do not file). `open-cards`/`file-cards`/`sync-sheet` return `{"skipped": true, ...}` JSON — read it and continue. |
+
+If `gws`, `slack`, and `fireflies` are **all** missing, stop — there's nothing to gather. Otherwise produce the brief with whatever sources are available, and call out the absent ones in the brief's header line (e.g., *"Slack and Fireflies unavailable in this brief"*).
+
+See the corresponding skills (`slack`, `fireflies`) for how their wrappers are installed. `gws` and `fizzy` are out of scope for this stack — point the user at their respective install docs if missing.
 
 ## Configuration
 
@@ -63,7 +73,7 @@ This returns the start/end timestamps in multiple formats. Use them for the down
 
 ## Step 2: Gather, in parallel
 
-Make all of these calls in a **single message with parallel tool uses**. They're independent.
+Make all of these calls in a **single message with parallel tool uses**. They're independent. **Skip any block whose CLI was MISSING at preflight** (see Dependencies table). The Fizzy block (`open-cards`) self-skips with a JSON payload if fizzy isn't installed — call it anyway and read the response.
 
 **1. Slack — today's conversations (both sides)**
 ```bash
@@ -141,7 +151,9 @@ When in doubt about a person, prefer linking — Obsidian creates a stub page, w
 
 ## Step 4: Identify Tier 1 → file to Fizzy
 
-For each Tier 1 item, build a JSON object:
+**If `fizzy` was MISSING at preflight, skip this entire step.** Surface the Tier 1 items in the brief itself (Section 8) and tell the user in the closing line that filing was skipped because Fizzy isn't installed. Don't run `file-cards`.
+
+For each Tier 1 item (when fizzy is available), build a JSON object:
 
 ```json
 {
