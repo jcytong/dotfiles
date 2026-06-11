@@ -2,6 +2,7 @@
   "permissions": {
     "defaultMode": "auto"
   },
+  "model": "claude-fable-5[1m]",
   "hooks": {
     "PreToolUse": [
       {
@@ -46,14 +47,16 @@
     "frontend-design@claude-plugins-official": true,
     "supabase@claude-plugins-official": true,
     "superpowers@claude-plugins-official": true,
-    "qmd@qmd": true
+    "qmd@qmd": true,
+    "ruby-lsp@claude-plugins-official": true
   },
-  "effortLevel": "medium",
+  "effortLevel": "high",
   "voice": {
     "enabled": true,
     "mode": "hold"
   },
   "skipDangerousModePermissionPrompt": true,
+  "agentPushNotifEnabled": true,
   "skipAutoPermissionPrompt": true,
   "voiceEnabled": true
 }
