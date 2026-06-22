@@ -1,0 +1,4 @@
+[submodule "files/home/.claude/claude-skills"]
+	path = files/home/.claude/claude-skills
+	url = git@github.com:FutureSightVentures/claude-skills.git
+	branch = main
