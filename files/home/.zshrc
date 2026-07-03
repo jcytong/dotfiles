@@ -232,3 +232,6 @@ wt() {
 
 # bun completions
 [ -s "$HOME/.bun/_bun" ] && source "$HOME/.bun/_bun"
+
+# Added by Cap
+export PATH="/Users/jcytong/.cap/bin:$PATH"
