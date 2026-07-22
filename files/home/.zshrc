@@ -235,3 +235,9 @@ wt() {
 
 # Added by Cap
 export PATH="/Users/jcytong/.cap/bin:$PATH"
+
+# Ensure fzf-tab owns Tab (must be the LAST thing to bind ^I).
+# Otherwise fzf's own completion.zsh (sourced via ~/.fzf.zsh / fzf-zsh-plugin)
+# rebinds ^I to fzf-completion, which re-enters fzf-tab-complete as a fallback
+# and makes zsh exit on Tab. Re-enabling fzf-tab restores a clean direct binding.
+(( $+functions[enable-fzf-tab] )) && enable-fzf-tab
