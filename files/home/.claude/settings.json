@@ -48,9 +48,11 @@
     "supabase@claude-plugins-official": true,
     "superpowers@claude-plugins-official": true,
     "qmd@qmd": true,
-    "ruby-lsp@claude-plugins-official": true
+    "ruby-lsp@claude-plugins-official": true,
+    "datadog@claude-plugins-official": true
   },
   "effortLevel": "high",
+  "tui": "fullscreen",
   "voice": {
     "enabled": true,
     "mode": "hold"
