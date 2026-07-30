@@ -94,6 +94,23 @@ alias start_n8n="docker run -it --rm --name n8n -p 5678:5678 -v n8n_data:/home/n
 alias python="uv run python"
 alias python3="uv run python"
 
+# Run interactive Claude inside its own memory-limited cgroup scope.
+# Added 2026-07-30: on terrain-web-app an unbounded session grew to 5.8G on a
+# 7.4G swapless box, thrashed the kernel and took down systemd-networkd with it.
+# No-op on macOS or anywhere without a systemd user manager.
+if [[ "$OSTYPE" == linux* ]] && (( $+commands[systemd-run] )); then
+  claude() {
+    local bin="${HOME}/.local/bin/claude"
+    [[ -x "$bin" ]] || bin="$(whence -p claude)"
+    if [[ -n "$XDG_RUNTIME_DIR" && -S "$XDG_RUNTIME_DIR/bus" ]]; then
+      systemd-run --user --scope -q --description="claude interactive session" \
+        -p MemoryMax=4G -p MemorySwapMax=2G -- "$bin" "$@"
+    else
+      "$bin" "$@"
+    fi
+  }
+fi
+
 HISTTIMEFORMAT="%d/%m/%y %T "
 
 # To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
