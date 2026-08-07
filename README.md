@@ -34,7 +34,16 @@ files/home/.config/nvim/     → ~/.config/nvim/
 files/home/.zshrc            → ~/.zshrc
 ```
 
-Then run `./bin/dotf link` to create symlinks.
+Then run `./bin/dotf link` to create symlinks. The installer links Claude's
+public skills directory as a whole, and links each public skill into
+`~/.codex/skills/`. Public skills that point into the team or personal tiers
+continue to use those canonical targets.
+
+The installer is safe to rerun: it only replaces symlinks and never removes an
+existing non-symlink file or directory. Codex's `.system` directory and other
+separately installed skills are left alone. Use `./bin/dotf --dry-run` to see
+what would change, or `./bin/dotf verify` to check the managed links without
+making changes.
 
 ## Structure
 

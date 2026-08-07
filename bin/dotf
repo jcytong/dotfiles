@@ -4,64 +4,261 @@ set -e
 DOTFILES_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 FILES_DIR="$DOTFILES_DIR/files/home"
 
-# Directories to symlink as a whole (not file-by-file)
+# Directories to symlink as a whole (not file-by-file).
 DIR_LINKS=".claude/skills"
 
-link_files() {
-  # Phase 1: Link whole directories listed in DIR_LINKS
+# Coding-agent skill directories that should receive one link per public skill.
+# Add a home-relative skills directory here when another CLI should share these
+# skills. The public Claude root remains the single source of truth.
+SHARED_SKILL_LINK_TARGETS=".codex/skills"
+
+MODE="link"
+VERIFY_FAILURES=0
+
+path_exists() {
+  [ -e "$1" ] || [ -L "$1" ]
+}
+
+normalize_path() {
+  path="$1"
+  normalized=""
+  old_ifs="$IFS"
+  IFS=/
+  set -- $path
+  IFS="$old_ifs"
+
+  for component in "$@"; do
+    case "$component" in
+      ""|.)
+        ;;
+      ..)
+        case "$normalized" in
+          */*) normalized="${normalized%/*}";;
+          *) normalized="";;
+        esac
+        ;;
+      *) normalized="$normalized/$component";;
+    esac
+  done
+
+  [ -n "$normalized" ] || normalized="/"
+  printf '%s\n' "$normalized"
+}
+
+canonical_skill_source() {
+  source_skill="$1"
+
+  if [ -L "$source_skill" ]; then
+    source_link="$(readlink "$source_skill")"
+    case "$source_link" in
+      /*) printf '%s\n' "$source_link";;
+      *) normalize_path "$(dirname "$source_skill")/$source_link";;
+    esac
+  else
+    printf '%s\n' "$source_skill"
+  fi
+}
+
+verify_failure() {
+  echo "Mismatch: $1"
+  VERIFY_FAILURES=$((VERIFY_FAILURES + 1))
+}
+
+ensure_parent_directory() {
+  parent="$1"
+
+  [ -d "$parent" ] && return 0
+
+  if [ "$MODE" = "verify" ]; then
+    verify_failure "missing parent directory $parent"
+  elif [ "$MODE" = "dry-run" ]; then
+    echo "Would create directory $parent"
+  else
+    mkdir -p "$parent"
+  fi
+}
+
+ensure_symlink() {
+  source="$1"
+  target="$2"
+  description="$3"
+
+  if [ -L "$target" ]; then
+    current="$(readlink "$target")"
+    if [ "$current" = "$source" ]; then
+      [ "$MODE" = "verify" ] && echo "OK: $description"
+      return 0
+    fi
+
+    if [ "$MODE" = "verify" ]; then
+      verify_failure "$description points to $current (expected $source)"
+      return 0
+    fi
+
+    if [ "$MODE" = "dry-run" ]; then
+      echo "Would replace symlink $target ($current)"
+      return 0
+    fi
+
+    # This is deliberately only called after -L: never recursively remove a
+    # directory that the installer does not own.
+    rm "$target"
+  elif path_exists "$target"; then
+    if [ "$MODE" = "verify" ]; then
+      verify_failure "$description is not a symlink; left unchanged"
+    else
+      echo "Skipping $target (existing non-symlink left unchanged)"
+    fi
+    return 0
+  fi
+
+  ensure_parent_directory "$(dirname "$target")"
+
+  if [ "$MODE" = "verify" ]; then
+    verify_failure "missing $description"
+  elif [ "$MODE" = "dry-run" ]; then
+    echo "Would link $target -> $source"
+  else
+    ln -s "$source" "$target"
+    echo "Linked $target -> $source"
+  fi
+}
+
+link_directories() {
   for dir in $DIR_LINKS; do
     source="$FILES_DIR/$dir"
     target="$HOME/$dir"
     [ -d "$source" ] || continue
 
-    mkdir -p "$(dirname "$target")"
-
     if [ -L "$target" ]; then
-      rm "$target"
-    elif [ -d "$target" ]; then
-      echo "Replacing $dir/ directory with symlink"
-      rm -rf "$target"
+      ensure_symlink "$source" "$target" "$dir directory"
+    elif path_exists "$target"; then
+      if [ "$MODE" = "verify" ]; then
+        verify_failure "$dir directory is not a symlink; left unchanged"
+      else
+        echo "Skipping $target (existing non-symlink directory left unchanged)"
+      fi
+    else
+      ensure_symlink "$source" "$target" "$dir directory"
     fi
-
-    ln -s "$source" "$target"
-    echo "Linked $dir/ (directory)"
   done
+}
 
-  # Phase 2: Link individual files, skipping dirs handled above
-  find "$FILES_DIR" -type f | while read -r file; do
+link_files() {
+  # Link ordinary files, skipping paths handled as whole directories above.
+  while IFS= read -r -d '' file; do
     relative="${file#$FILES_DIR/}"
 
-    # Skip files inside directory-linked paths
     skip=false
     for dir in $DIR_LINKS; do
-      case "$relative" in "$dir/"*) skip=true; break;; esac
+      case "$relative" in
+        "$dir/"*) skip=true; break;;
+      esac
     done
     $skip && continue
 
-    target="$HOME/$relative"
+    ensure_symlink "$file" "$HOME/$relative" "$relative"
+  done < <(find "$FILES_DIR" -type f -print0)
+}
 
-    mkdir -p "$(dirname "$target")"
+ensure_agent_skill_root() {
+  target_root="$1"
 
-    if [ -L "$target" ]; then
-      rm "$target"
-    elif [ -e "$target" ]; then
-      echo "Skipping $relative (file exists and is not a symlink)"
-      continue
+  if [ -L "$target_root" ]; then
+    if [ "$MODE" = "verify" ]; then
+      verify_failure "$target_root is itself a symlink; left unchanged"
+    else
+      echo "Skipping $target_root (skills root is a symlink; left unchanged)"
     fi
+    return 1
+  fi
 
-    ln -s "$file" "$target"
-    echo "Linked $relative"
+  if [ -d "$target_root" ]; then
+    return 0
+  fi
+
+  if path_exists "$target_root"; then
+    if [ "$MODE" = "verify" ]; then
+      verify_failure "$target_root exists but is not a directory"
+    else
+      echo "Skipping $target_root (existing non-directory left unchanged)"
+    fi
+    return 1
+  fi
+
+  if [ "$MODE" = "verify" ]; then
+    verify_failure "missing skills root $target_root"
+    return 1
+  elif [ "$MODE" = "dry-run" ]; then
+    echo "Would create directory $target_root"
+  else
+    mkdir -p "$target_root"
+  fi
+  return 0
+}
+
+link_shared_skills() {
+  source_root="$FILES_DIR/.claude/skills"
+  [ -d "$source_root" ] || return 0
+
+  for target_root_relative in $SHARED_SKILL_LINK_TARGETS; do
+    target_root="$HOME/$target_root_relative"
+    ensure_agent_skill_root "$target_root" || continue
+
+    for source_skill in "$source_root"/*; do
+      # Keep broken canonical links visible to the agent: the submodule may be
+      # initialized after this installer runs, and the link itself is managed.
+      path_exists "$source_skill" || continue
+      skill="${source_skill##*/}"
+      canonical_source="$(canonical_skill_source "$source_skill")"
+      ensure_symlink "$canonical_source" "$target_root/$skill" "$target_root_relative/$skill"
+    done
   done
+}
+
+usage() {
+  echo "Usage: dotf [link|--dry-run|verify]"
+  echo ""
+  echo "Commands:"
+  echo "  link       Symlink files from files/home/ to ~/ (default)"
+  echo "  --dry-run  Show link changes without modifying ~/"
+  echo "  verify     Check managed links without modifying ~/"
 }
 
 case "${1:-link}" in
   link)
-    link_files
+    if [ "${2:-}" = "--dry-run" ]; then
+      MODE="dry-run"
+    elif [ -n "${2:-}" ]; then
+      usage
+      exit 1
+    fi
+    ;;
+  --dry-run|dry-run)
+    if [ -n "${2:-}" ]; then
+      usage
+      exit 1
+    fi
+    MODE="dry-run"
+    ;;
+  verify)
+    if [ -n "${2:-}" ]; then
+      usage
+      exit 1
+    fi
+    MODE="verify"
     ;;
   *)
-    echo "Usage: dotf [link]"
-    echo ""
-    echo "Commands:"
-    echo "  link    Symlink files from files/home/ to ~/ (default)"
+    usage
+    exit 1
     ;;
 esac
+
+link_directories
+link_files
+link_shared_skills
+
+if [ "$MODE" = "verify" ] && [ "$VERIFY_FAILURES" -ne 0 ]; then
+  echo "Verification failed: $VERIFY_FAILURES managed link(s) need attention."
+  exit 1
+fi
