@@ -95,8 +95,8 @@ alias python="uv run python"
 alias python3="uv run python"
 
 # Run interactive Claude inside its own memory-limited cgroup scope.
-# Added 2026-07-30: on terrain-web-app an unbounded session grew to 5.8G on a
-# 7.4G swapless box, thrashed the kernel and took down systemd-networkd with it.
+# Added 2026-07-30: on a small swapless Linux box an unbounded session grew
+# large enough to thrash the kernel and take down systemd-networkd with it.
 # No-op on macOS or anywhere without a systemd user manager.
 if [[ "$OSTYPE" == linux* ]] && (( $+commands[systemd-run] )); then
   claude() {
