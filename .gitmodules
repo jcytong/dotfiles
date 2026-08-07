@@ -2,3 +2,6 @@
 	path = files/home/.claude/claude-skills
 	url = git@github.com:FutureSightVentures/claude-skills.git
 	branch = main
+[submodule "files/home/.claude/agent-skills-local"]
+	path = files/home/.claude/agent-skills-local
+	url = git@github.com:jcytong/agent-skills-local.git
