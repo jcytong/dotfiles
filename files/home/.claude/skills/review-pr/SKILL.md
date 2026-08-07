@@ -1,7 +1,6 @@
 ---
 name: review-pr
 description: Review a GitHub pull request and provide feedback
-argument-hint: "[pr-number or url]"
 ---
 
 # PR Review
@@ -20,7 +19,7 @@ If `gh` is not found, install it with `brew install gh`. If not authenticated, r
 
 ## Step 1: Check for Previous Reviews and New Commits
 
-**IMPORTANT:** Before doing a full review, check if Claude has already reviewed this PR and if there are new commits since then.
+**IMPORTANT:** Before doing a full review, check if Codex has already reviewed this PR and if there are new commits since then.
 
 ```bash
 # Get PR metadata including commits and comments in one call
@@ -28,11 +27,11 @@ gh pr view $ARGUMENTS --json number,title,state,updatedAt,commits,comments
 ```
 
 From the output:
-1. Look for comments containing "*Reviewed by Claude*" - note the timestamp if found
+1. Look for comments containing "*Reviewed by Codex*" - note the timestamp if found
 2. Check the commits array - get the latest commit's `committedDate`
-3. Compare: If the latest commit is NEWER than the last Claude review, there are new changes to review
+3. Compare: If the latest commit is NEWER than the last Codex review, there are new changes to review
 
-**If a previous Claude review exists:**
+**If a previous Codex review exists:**
 - Check if any commits were pushed AFTER that review's timestamp
 - If YES: Do a fresh review of the CURRENT diff (the old review may be outdated)
 - If NO: Inform the user the review is still current and summarize the key findings
@@ -83,7 +82,7 @@ gh pr comment $ARGUMENTS --body "## Code Review
 [Your structured review here]
 
 ---
-*Reviewed by Claude*"
+*Reviewed by Codex*"
 ```
 
 For re-reviews, consider starting with:

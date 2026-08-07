@@ -44,7 +44,7 @@ Commit, push, and optionally create a PR.
 git commit -m "$(cat <<'EOF'
 <message>
 
-Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+Co-Authored-By: Codex Opus 4.6 <noreply@anthropic.com>
 EOF
 )"
 ```
@@ -70,7 +70,7 @@ gh pr create --title "<short title>" --body "$(cat <<'EOF'
 ## Test plan
 - [ ] <verification steps>
 
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
+🤖 Generated with [Codex](https://claude.com/claude-code)
 EOF
 )"
 ```
