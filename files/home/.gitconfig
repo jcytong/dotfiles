@@ -1,5 +1,6 @@
 [user]
-	name = deploy@terrain-web-app
+	name = Johnny Tong
+	email = hi@johnnytong.local
 [color]
 	status = auto
 	diff = auto
@@ -18,6 +19,7 @@
 	legacyheaders = false
 	editor = vim
 	autocrlf = input
+	excludesFile = ~/.gitignore
 [init]
 	defaultBranch = master
 [pull]
