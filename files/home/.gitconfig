@@ -30,3 +30,8 @@
 	helper = !gh auth git-credential
 [credential "https://gist.github.com"]
 	helper = !gh auth git-credential
+# Per-box settings (safe.directory for local checkouts, work identities) belong
+# here, not in this file. Missing on a fresh machine is fine — git ignores an
+# include whose path does not exist. Last include wins, so keep this last.
+[include]
+	path = ~/.gitconfig.local
