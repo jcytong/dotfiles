@@ -94,21 +94,25 @@ alias start_n8n="docker run -it --rm --name n8n -p 5678:5678 -v n8n_data:/home/n
 alias python="uv run python"
 alias python3="uv run python"
 
-# Run interactive Claude inside its own memory-limited cgroup scope.
+# Run interactive coding agents inside their own memory-limited cgroup scope.
 # Added 2026-07-30: on a small swapless Linux box an unbounded session grew
 # large enough to thrash the kernel and take down systemd-networkd with it.
+# Codex caps lower than Claude so both can sit in memory at once, and the
+# wrapper doubles as its PATH entry (npm-global/bin is not on PATH).
 # No-op on macOS or anywhere without a systemd user manager.
 if [[ "$OSTYPE" == linux* ]] && (( $+commands[systemd-run] )); then
-  claude() {
-    local bin="${HOME}/.local/bin/claude"
-    [[ -x "$bin" ]] || bin="$(whence -p claude)"
+  _scoped_agent() {
+    local name="$1" mem="$2" bin="$3"; shift 3
+    [[ -x "$bin" ]] || bin="$(whence -p "$name")"
     if [[ -n "$XDG_RUNTIME_DIR" && -S "$XDG_RUNTIME_DIR/bus" ]]; then
-      systemd-run --user --scope -q --description="claude interactive session" \
-        -p MemoryMax=4G -p MemorySwapMax=2G -- "$bin" "$@"
+      systemd-run --user --scope -q --description="$name interactive session" \
+        -p MemoryMax="$mem" -p MemorySwapMax=2G -- "$bin" "$@"
     else
       "$bin" "$@"
     fi
   }
+  claude() { _scoped_agent claude 4G "${HOME}/.local/bin/claude" "$@" }
+  codex()  { _scoped_agent codex  3G "${HOME}/.npm-global/bin/codex" "$@" }
 fi
 
 HISTTIMEFORMAT="%d/%m/%y %T "
