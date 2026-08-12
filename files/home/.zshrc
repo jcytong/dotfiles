@@ -111,7 +111,14 @@ if [[ "$OSTYPE" == linux* ]] && (( $+commands[systemd-run] )); then
       "$bin" "$@"
     fi
   }
-  claude() { _scoped_agent claude 4G "${HOME}/.local/bin/claude" "$@" }
+  # --settings layers the tracked config (hooks, permissions, plugins) over the
+  # untracked ~/.claude/settings.json that /model and friends rewrite. Keep the
+  # two files' keys disjoint: this source outranks user settings, so a key here
+  # silently wins over anything the UI writes there.
+  claude() {
+    _scoped_agent claude 4G "${HOME}/.local/bin/claude" \
+      --settings "${HOME}/.claude/settings.shared.json" "$@"
+  }
   codex()  { _scoped_agent codex  3G "${HOME}/.npm-global/bin/codex" "$@" }
 fi
 

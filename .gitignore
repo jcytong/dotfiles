@@ -1,2 +1,6 @@
 __pycache__
 .serena/
+
+# Claude rewrites this file whenever /model, /theme or a voice toggle is used.
+# Durable config lives in .claude/settings.shared.json, loaded via --settings.
+files/home/.claude/settings.json
