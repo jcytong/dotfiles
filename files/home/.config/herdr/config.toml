@@ -25,6 +25,8 @@ resize_mode   = "prefix+shift+r"             # swapped with reload_config to fre
 
 detach = "prefix+d"                          # tmux: prefix d  (herdr default was prefix+q)
 
+toggle_sidebar = "prefix+slash"              # the agent panel; herdr default prefix+b is now free
+
 # ── Stage 3 (see note below) — bare-chord pane movement ──────────────
 focus_pane_left  = "ctrl+h"                  # tmux: bind -n C-h select-pane -L
 focus_pane_down  = "ctrl+j"                  # tmux: bind -n C-j select-pane -D
@@ -93,7 +95,7 @@ focus_pane_right = "ctrl+l"                  # tmux: bind -n C-l select-pane -R
 # [keys] additions for agent work — herdr has no tmux analogue for these:
 #   prefix+w        workspace picker
 #   prefix+g        goto / navigate mode
-#   prefix+b        toggle sidebar (the agent panel)
+#   prefix+/        toggle sidebar (the agent panel) — rebound in [keys] above
 #   prefix+shift+g  new worktree
 #   prefix+e        edit scrollback in $EDITOR
 
