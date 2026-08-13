@@ -1,0 +1,113 @@
+onboarding = false
+# herdr configuration — staged migration from ~/.tmux.conf
+#
+# STAGE 1 is active. Stages 2–4 are parked below as comments.
+# Uncomment ONE stage at a time, then:
+#
+#   herdr config check          # validate (catches typos + invalid bindings)
+#   herdr server reload-config  # apply without restarting the server
+#
+# Panic button — backs up this file and strips all custom keybindings:
+#   herdr config reset-keys
+
+# ─────────────────────────────────────────────────────────────────────
+# STAGE 1 — the chords your fingers already know          [ACTIVE]
+# Only the keys where tmux and herdr disagree. Zero tradeoffs.
+# ─────────────────────────────────────────────────────────────────────
+[keys]
+prefix = "ctrl+a"                            # tmux: set -g prefix C-a  (was ctrl+b)
+
+split_vertical   = "prefix+shift+backslash"  # tmux: bind | split-window -h  → side by side
+split_horizontal = "prefix+minus"            # tmux: bind - split-window -v  → stacked
+
+reload_config = "prefix+r"                   # tmux: bind r source-file
+resize_mode   = "prefix+shift+r"             # swapped with reload_config to free prefix+r
+
+detach = "prefix+d"                          # tmux: prefix d  (herdr default was prefix+q)
+
+# ── Stage 3 (see note below) — bare-chord pane movement ──────────────
+focus_pane_left  = "ctrl+h"                  # tmux: bind -n C-h select-pane -L
+focus_pane_down  = "ctrl+j"                  # tmux: bind -n C-j select-pane -D
+focus_pane_up    = "ctrl+k"                  # tmux: bind -n C-k select-pane -U
+focus_pane_right = "ctrl+l"                  # tmux: bind -n C-l select-pane -R
+
+# Already identical to your tmux — no config needed:
+#   prefix+c  new tab        (tmux: new-window)
+#   prefix+n  next tab       prefix+p  previous tab
+#   prefix+1..9  switch tab  (tmux base-index 1 — herdr already 1-indexed)
+#   prefix+z  zoom           prefix+x  close pane
+#   prefix+tab  cycle pane   (tmux: bind ^J select-pane -t :.+)
+
+# ─────────────────────────────────────────────────────────────────────
+# STAGE 2 — make it look like home                     [PART ACTIVE]
+# Cosmetic only. Nothing here can break a keybinding.
+# ─────────────────────────────────────────────────────────────────────
+# theme.name          -> you chose "tokyo-night" (see [theme] at the bottom)
+# ui.accent           -> ACTIVE, see [ui] at the bottom
+# advanced.scrollback -> ACTIVE, see [advanced] at the bottom
+#
+# Still parked — uncomment into the [ui] table at the bottom when you want them:
+# pane_borders = true      # tmux: pane-border-style
+# copy_on_select = false   # your tmux copy-mode requires an explicit y (keeps that habit)
+
+# ─────────────────────────────────────────────────────────────────────
+# STAGE 3 — where herdr and tmux genuinely diverge        [ACTIVE]
+# The bindings live in [keys] above. This is the note explaining the cost.
+# ─────────────────────────────────────────────────────────────────────
+# Your tmux does vim-AWARE pane switching: C-hjkl checks whether the pane is
+# running vim (is_vim) and forwards the key instead of switching panes.
+# herdr has no is_vim equivalent — it cannot conditionally pass keys through.
+# You use this: vim-tmux-navigator (.vimrc:19) + <C-w> maps (.vimrc:107-111).
+#
+# herdr's DEFAULT is prefix+h/j/k/l, which leaves ctrl+hjkl free for vim.
+# That default is why Stage 1 doesn't touch pane focus at all.
+#
+# ACTIVATED by request. What this costs you, concretely:
+#   Inside a vim split, ctrl+hjkl no longer reaches vim — herdr eats it first.
+#   Use vim's native <C-w>h / <C-w>j / <C-w>k / <C-w>l instead.
+#   (.vimrc:108-111 map <C-h> -> <C-w>h; the <C-w> form still works untouched.)
+#
+# Safe to bind because tmux is parked: your tmux bound C-hjkl in the ROOT table
+# (bind-key -n), so a running tmux would have intercepted these before herdr.
+# If you ever un-park tmux, comment these four out or the two will fight.
+#
+# last_pane = "prefix+ctrl+a"   # tmux: bind C-\ select-pane -l (back-and-forth)
+
+# ─────────────────────────────────────────────────────────────────────
+# STAGE 4 — things tmux never had                         [PARKED]
+# New muscle memory. Save for when Stages 1–3 feel automatic.
+# ─────────────────────────────────────────────────────────────────────
+# [session]
+# resume_agents_on_restore = true   # replaces tmux-resurrect, but for agent sessions
+#
+# [ui.toast]
+# delivery = "herdr"       # agent finished / needs input, without watching the pane
+# delay_seconds = 1
+#
+# [ui.sound]
+# enabled = true
+#
+# [worktrees]
+# directory = "~/.herdr/worktrees"
+#
+# [keys] additions for agent work — herdr has no tmux analogue for these:
+#   prefix+w        workspace picker
+#   prefix+g        goto / navigate mode
+#   prefix+b        toggle sidebar (the agent panel)
+#   prefix+shift+g  new worktree
+#   prefix+e        edit scrollback in $EDITOR
+
+[theme]
+name = "tokyo-night"
+auto_switch = false
+
+[ui]
+# Was green to match tmux's pane-active-border-style fg=#00ff00; swapped to
+# tokyo-night's native accent so the active-pane border matches the theme.
+accent = "#7aa2f7"
+
+[advanced]
+# tmux: history-limit 100000 (lines). herdr caps by BYTES, not lines, so this
+# is an approximation: 50 MB ≈ 100k lines of ordinary terminal output, and
+# well past it for sparse output. Default was 10 MB.
+scrollback_limit_bytes = 50000000

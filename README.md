@@ -10,6 +10,20 @@ cd ~/.dotfiles
 ./bin/dotf link
 ```
 
+### herdr
+
+`~/.config/herdr/config.toml` is tracked. The Claude integration is not —
+herdr generates and version-stamps `~/.claude/hooks/herdr-agent-state.sh`,
+so vendoring it would pin a stale copy. Regenerate it after linking:
+
+```bash
+herdr integration install claude
+```
+
+That writes the hook script and a `SessionStart` entry into the untracked
+`~/.claude/settings.json`. To keep the hook across machines, move that entry
+into `.claude/settings.shared.json`, which is the tracked, durable config.
+
 ## Adding Dotfiles
 
 Put files in `files/home/` mirroring your home directory structure:
