@@ -245,7 +245,7 @@ wt() {
 [ -s "$HOME/.bun/_bun" ] && source "$HOME/.bun/_bun"
 
 # Added by Cap
-export PATH="/Users/jcytong/.cap/bin:$PATH"
+export PATH="$HOME/.cap/bin:$PATH"
 
 # Ensure fzf-tab owns Tab (must be the LAST thing to bind ^I).
 # Otherwise fzf's own completion.zsh (sourced via ~/.fzf.zsh / fzf-zsh-plugin)
