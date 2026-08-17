@@ -5,12 +5,13 @@ DOTFILES_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 FILES_DIR="$DOTFILES_DIR/files/home"
 
 # Directories to symlink as a whole (not file-by-file).
-DIR_LINKS=".claude/skills"
+DIR_LINKS=".agents/skills"
 
 # Coding-agent skill directories that should receive one link per public skill.
 # Add a home-relative skills directory here when another CLI should share these
-# skills. The public Claude root remains the single source of truth.
-SHARED_SKILL_LINK_TARGETS=".codex/skills"
+# skills. The vendor-neutral .agents root is the single source of truth; every
+# per-agent root below is generated from it.
+SHARED_SKILL_LINK_TARGETS=".claude/skills .codex/skills .pi/skills"
 
 MODE="link"
 VERIFY_FAILURES=0
@@ -198,7 +199,7 @@ ensure_agent_skill_root() {
 }
 
 link_shared_skills() {
-  source_root="$FILES_DIR/.claude/skills"
+  source_root="$FILES_DIR/.agents/skills"
   [ -d "$source_root" ] || return 0
 
   for target_root_relative in $SHARED_SKILL_LINK_TARGETS; do
