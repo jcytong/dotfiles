@@ -99,6 +99,26 @@ focus_pane_right = "ctrl+l"                  # tmux: bind -n C-l select-pane -R
 #   prefix+shift+g  new worktree
 #   prefix+e        edit scrollback in $EDITOR
 
+# ─────────────────────────────────────────────────────────────────────
+# PREFIX+SPACE — the tmux chord herdr has no action for   [ACTIVE]
+# tmux: prefix Space = next-layout. herdr ships no layout action at all,
+# so this goes through [[keys.command]] and the session socket instead.
+#
+# What you get: every split in the focused tab is resized so all panes end
+# up the same area. Non-destructive — pane IDs, processes, and scrollback
+# are untouched. Press it again and nothing moves; it is idempotent.
+#
+# What you do NOT get: tmux cycles the layout *shape* (even-horizontal →
+# even-vertical → main-vertical → tiled). herdr's layout.apply tears the
+# tab down and respawns fresh panes, and pane move is a no-op within a tab,
+# so reshaping cannot be done without killing what is running. Only the
+# even-out half of next-layout is safe, and that is what this binds.
+# ─────────────────────────────────────────────────────────────────────
+[[keys.command]]
+key = "prefix+space"
+type = "shell"
+command = "$HOME/.config/herdr/balance-layout"
+
 [theme]
 name = "tokyo-night"
 auto_switch = false

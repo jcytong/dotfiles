@@ -1,0 +1,98 @@
+#!/usr/bin/python3
+"""Even out every split in a Herdr tab, the way tmux's prefix+Space does.
+
+Herdr has no built-in layout action, so this talks to the session socket
+directly: layout.export reads the split tree, layout.set_split_ratio resizes
+one split at a time. Both are non-destructive — panes, processes, and pane IDs
+survive untouched.
+
+Each split is sized by how many panes sit on either side of it, so every pane
+in the tab ends up with the same area regardless of how the tree was built.
+
+Usage: balance-layout [--tab TAB_ID] [--dry-run]
+       (no --tab uses $HERDR_ACTIVE_TAB_ID, which Herdr exports to keybinding
+        commands, and falls back to whichever tab the UI has focused)
+"""
+
+import json
+import os
+import socket
+import sys
+
+SOCKET_PATH = os.environ.get(
+    "HERDR_SOCKET_PATH", os.path.expanduser("~/.config/herdr/herdr.sock")
+)
+
+
+def call(method, params):
+    """Send one request over the Herdr socket and return its result payload."""
+    conn = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    conn.settimeout(5)
+    try:
+        conn.connect(SOCKET_PATH)
+        conn.sendall(
+            (json.dumps({"id": "balance-layout", "method": method, "params": params}) + "\n").encode()
+        )
+        buffer = b""
+        while b"\n" not in buffer:
+            chunk = conn.recv(65536)
+            if not chunk:
+                raise IOError("herdr closed the connection")
+            buffer += chunk
+    finally:
+        conn.close()
+
+    response = json.loads(buffer.split(b"\n")[0].decode())
+    if "error" in response:
+        raise IOError(response["error"])
+    return response["result"]
+
+
+def pane_count(node):
+    if node["type"] == "pane":
+        return 1
+    return pane_count(node["first"]) + pane_count(node["second"])
+
+
+def even_ratios(node, path=()):
+    """Yield (path, ratio) for every split, parent before child.
+
+    A path is the sequence of branches taken from the root: False for the
+    first child, True for the second — the shape layout.set_split_ratio wants.
+    """
+    if node["type"] == "pane":
+        return
+    first, second = node["first"], node["second"]
+    yield list(path), pane_count(first) / (pane_count(first) + pane_count(second))
+    for branch, child in ((False, first), (True, second)):
+        for entry in even_ratios(child, path + (branch,)):
+            yield entry
+
+
+def main(argv):
+    tab_id = os.environ.get("HERDR_ACTIVE_TAB_ID")
+    dry_run = False
+    while argv:
+        argument = argv.pop(0)
+        if argument == "--tab":
+            tab_id = argv.pop(0)
+        elif argument == "--dry-run":
+            dry_run = True
+        else:
+            sys.exit("usage: balance-layout [--tab TAB_ID] [--dry-run]")
+
+    target = {"tab_id": tab_id} if tab_id else {}
+    layout = call("layout.export", target)["layout"]
+
+    for path, ratio in even_ratios(layout["root"]):
+        if dry_run:
+            print("split %s -> %.4f" % (path or ["root"], ratio))
+            continue
+        call("layout.set_split_ratio", dict(target, path=path, ratio=ratio))
+
+
+if __name__ == "__main__":
+    try:
+        main(sys.argv[1:])
+    except (IOError, OSError, KeyError, ValueError) as failure:
+        sys.exit("balance-layout: %s" % failure)
