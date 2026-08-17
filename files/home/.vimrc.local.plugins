@@ -1,0 +1,26 @@
+" Language-specific plugins, sourced from inside .vimrc's plug#begin block.
+" Kept out of .vimrc so the managed core stays small and portable.
+
+" ── Ruby ──
+Plug 'vim-ruby/vim-ruby',        { 'for': 'ruby' }
+Plug 'tpope/vim-rails',          { 'for': 'ruby' }
+Plug 'tpope/vim-endwise',        { 'for': 'ruby' }
+Plug 'vim-scripts/ruby-matchit', { 'for': 'ruby' }
+Plug 'thoughtbot/vim-rspec',     { 'for': 'ruby' }
+
+" ── Clojure ──
+Plug 'tpope/vim-fireplace',      { 'for': 'clojure' }
+Plug 'venantius/vim-cljfmt',     { 'for': 'clojure' }
+Plug 'guns/vim-clojure-static',  { 'for': 'clojure' }
+Plug 'guns/vim-sexp',            { 'for': 'clojure' }
+Plug 'tpope/vim-sexp-mappings-for-regular-people', { 'for': 'clojure' }
+Plug 'luochen1990/rainbow',      { 'for': 'clojure' }
+Plug 'kovisoft/paredit',         { 'for': ['scheme'] }
+
+" ── GraphQL ──
+Plug 'jparise/vim-graphql',      { 'for': 'graphql' }
+
+" ── Web ──
+Plug 'evanleck/vim-svelte',       { 'for': 'svelte' }
+Plug 'cakebaker/scss-syntax.vim', { 'for': ['sass', 'scss'] }
+Plug 'gregsexton/MatchTag',       { 'for': 'html' }

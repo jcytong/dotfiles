@@ -1,0 +1,16 @@
+" Config for the plugins declared in ~/.vimrc.local.plugins.
+" Sourced at the end of .vimrc, so mappings here win over the managed core.
+
+" ── vim-rspec ──
+" PGGSSENCMODE workaround: https://github.com/ged/ruby-pg/issues/538
+let g:rspec_command = '!PGGSSENCMODE="disable" bin/rspec --drb {spec}'
+
+" <Leader>r stays bound to replace-word-with-register in the managed .vimrc,
+" so the spec runner moved to <Leader>R.
+map <Leader>R :call RunCurrentSpecFile()<CR>
+map <Leader>m :call RunNearestSpec()<CR>
+map <Leader>l :call RunLastSpec()<CR>
+
+" ── rainbow (Clojure) ──
+" 0 to start disabled and toggle later with :RainbowToggle
+let g:rainbow_active = 1

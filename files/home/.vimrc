@@ -1,4 +1,4 @@
-" Managed by dotfiles — keep machine-specific config in ~/.vimrc.local
+" Managed by dotfiles — language and personal config lives in ~/.vimrc.local
 
 set nocompatible
 filetype off
@@ -244,9 +244,10 @@ fun! PullAndRefresh()
 endfun
 nmap <Leader>gr call PullAndRefresh()
 
-" ── Machine-specific config ──
-" Source ~/.vimrc.local for machine-specific settings (extra plugins config,
-" macOS GUI settings, language-specific tools, etc.)
+" ── Language and personal config ──
+" Both .local files are tracked in dotfiles so they follow you between machines.
+" For a genuinely machine-only override, replace this symlink with a real file:
+" the installer skips non-symlinks rather than clobbering them.
 if filereadable(expand('~/.vimrc.local'))
   source ~/.vimrc.local
 endif
