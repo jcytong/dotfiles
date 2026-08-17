@@ -138,10 +138,20 @@ endif
 " sudo write
 cmap w!! w !sudo tee > /dev/null %
 
-" Use ag if available
-if executable('ag')
-  set grepprg=ag\ --nogroup\ --nocolor
-  let g:ctrlp_user_command = 'ag %s -l --nocolor -g ""'
+" Prefer ripgrep, fall back to the silver searcher. Both respect .gitignore and
+" are fast enough that CtrlP does not need its cache.
+"
+" --hidden is not optional here: both tools skip dotfiles by default, which in a
+" dotfiles repo hides nearly everything (4 files listed instead of 509). .git is
+" excluded explicitly since --hidden would otherwise walk into it.
+if executable('rg')
+  set grepprg=rg\ --vimgrep\ --no-heading\ --smart-case\ --hidden\ --glob\ !.git
+  set grepformat=%f:%l:%c:%m
+  let g:ctrlp_user_command = 'rg %s --files --color=never --hidden --glob "!.git"'
+  let g:ctrlp_use_caching = 0
+elseif executable('ag')
+  set grepprg=ag\ --nogroup\ --nocolor\ --hidden
+  let g:ctrlp_user_command = 'ag %s -l --nocolor --hidden -g ""'
   let g:ctrlp_use_caching = 0
 endif
 
