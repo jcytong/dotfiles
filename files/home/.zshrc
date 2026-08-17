@@ -31,6 +31,11 @@ CASE_SENSITIVE="true"
 # Example format: plugins=(rails git textmate ruby lighthouse)
 plugins=(git fzf-tab fzf-zsh-plugin)
 
+# fzf-zsh-plugin leaks FZF_PATH as a shell global (only fzf_conf is `local`).
+# On a re-source it then looks for $FZF_PATH/fzf.zsh instead of ~/.fzf.zsh and
+# fails, since fzf lives in /usr/bin here and ~/.fzf never gets created.
+unset FZF_PATH
+
 source $ZSH/oh-my-zsh.sh
 
 unsetopt SHARE_HISTORY
@@ -129,6 +134,24 @@ HISTTIMEFORMAT="%d/%m/%y %T "
 
 [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
 export FZF_DEFAULT_OPS="--extended"
+
+# ~/.fzf.zsh looks for fzf's shell integration under $FZF_PATH/shell/, but the
+# Debian package ships it in /usr/share/doc/fzf/examples/, so those sources
+# silently no-op and Ctrl-T / Alt-C never get bound. Load key-bindings directly.
+#
+# Deliberately NOT sourcing examples/completion.zsh from the same directory:
+# fzf-tab owns Tab here, and fzf-completion rebinding ^I is what used to make
+# zsh exit on Tab (see the enable-fzf-tab guard at the end of this file).
+if [[ -f /usr/share/doc/fzf/examples/key-bindings.zsh ]]; then
+  source /usr/share/doc/fzf/examples/key-bindings.zsh
+  # key-bindings.zsh claims ^R for fzf-history-widget; keep zsh's own search.
+  bindkey -M viins '^R' history-incremental-search-backward
+  bindkey -M vicmd '^R' history-incremental-search-backward
+
+  # fzf-zsh-plugin's FZF_ALT_C_COMMAND has unescaped parens, so find errors out
+  # and Alt-C opens an empty list. (Its fd-based override never runs: no fd here.)
+  export FZF_ALT_C_COMMAND='find . -type d \( -name .git -o -name node_modules \) -prune -o -type d -print'
+fi
 
 wt() {
   # Use local error handling instead of set -e
