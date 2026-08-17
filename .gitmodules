@@ -1,7 +1,7 @@
-[submodule "files/home/.claude/claude-skills"]
+[submodule "files/home/.agents/claude-skills"]
 	path = files/home/.agents/claude-skills
 	url = git@github.com:FutureSightVentures/claude-skills.git
 	branch = main
-[submodule "files/home/.claude/agent-skills-local"]
+[submodule "files/home/.agents/agent-skills-local"]
 	path = files/home/.agents/agent-skills-local
 	url = git@github.com:jcytong/agent-skills-local.git
