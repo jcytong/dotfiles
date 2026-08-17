@@ -111,6 +111,10 @@ Then run `./bin/dotf link`. Files are linked individually so that unrelated
 contents of a directory are left alone; add a path to `DIR_LINKS` to link a
 whole directory instead.
 
+Submodule working trees are never linked into `~` file-by-file — they reach the
+agents only through the per-skill links in `.agents/skills`. `dotf` reads their
+paths from `.gitmodules`, so adding a submodule needs no change to the installer.
+
 ## Structure
 
 ```

@@ -164,13 +164,37 @@ link_directories() {
   done
 }
 
+# Home-relative paths of submodule working trees, read from .gitmodules so a new
+# submodule needs no change here.
+#
+# These are consumed only through the per-skill links in .agents/skills and must
+# never be mirrored into $HOME file-by-file: that would deploy each skill twice
+# and copy the submodule's .git pointer file, whose relative gitdir path is
+# meaningless outside the repo. Before `git submodule update --init` the
+# directories are empty, so the omission is invisible until they are populated.
+submodule_trees() {
+  [ -f "$DOTFILES_DIR/.gitmodules" ] || return 0
+
+  git config -f "$DOTFILES_DIR/.gitmodules" --get-regexp '^submodule\..*\.path$' 2>/dev/null |
+    while read -r _ module_path; do
+      case "$module_path" in
+        files/home/*) printf '%s\n' "${module_path#files/home/}";;
+      esac
+    done
+
+  return 0
+}
+
 link_files() {
-  # Link ordinary files, skipping paths handled as whole directories above.
+  # Link ordinary files, skipping paths handled as whole directories above and
+  # any path inside a submodule working tree.
+  excluded_trees="$DIR_LINKS $(submodule_trees | tr '\n' ' ')"
+
   while IFS= read -r -d '' file; do
     relative="${file#$FILES_DIR/}"
 
     skip=false
-    for dir in $DIR_LINKS; do
+    for dir in $excluded_trees; do
       case "$relative" in
         "$dir/"*) skip=true; break;;
       esac
