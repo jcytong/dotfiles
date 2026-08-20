@@ -127,6 +127,8 @@ auto_switch = false
 # Was green to match tmux's pane-active-border-style fg=#00ff00; swapped to
 # tokyo-night's native accent so the active-pane border matches the theme.
 accent = "#7aa2f7"
+mouse_capture = false
+agent_panel_sort = "spaces"
 
 [advanced]
 # tmux: history-limit 100000 (lines). herdr caps by BYTES, not lines, so this
