@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 """Even out every split in a Herdr tab, the way tmux's prefix+Space does.
 
 Herdr has no built-in layout action, so this talks to the session socket
@@ -19,9 +19,33 @@ import os
 import socket
 import sys
 
-SOCKET_PATH = os.environ.get(
-    "HERDR_SOCKET_PATH", os.path.expanduser("~/.config/herdr/herdr.sock")
-)
+
+def default_socket_path():
+    """Locate the session socket the way herdr lays them out on disk.
+
+    Herdr exports HERDR_SOCKET_PATH into the panes it manages, so that wins
+    whenever it is set. The fallback is what a keybinding command gets if the
+    variable does not reach it: the default session's socket sits at the config
+    root, while every named session gets its own subdirectory. Reaching for the
+    root unconditionally would quietly balance the default session's layout
+    while you are looking at a named one.
+
+    Deliberately not XDG-aware. Herdr reads ~/.config/herdr even when
+    XDG_CONFIG_HOME points somewhere else, so honoring it here would send us
+    hunting for a socket herdr never created.
+    """
+    explicit = os.environ.get("HERDR_SOCKET_PATH")
+    if explicit:
+        return explicit
+
+    root = os.path.expanduser("~/.config/herdr")
+    session = os.environ.get("HERDR_SESSION")
+    if session and session != "default":
+        return os.path.join(root, "sessions", session, "herdr.sock")
+    return os.path.join(root, "herdr.sock")
+
+
+SOCKET_PATH = default_socket_path()
 
 
 def call(method, params):
