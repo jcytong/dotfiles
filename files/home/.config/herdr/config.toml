@@ -119,6 +119,26 @@ key = "prefix+space"
 type = "shell"
 command = "$HOME/.config/herdr/balance-layout"
 
+# ─────────────────────────────────────────────────────────────────────
+# PREFIX+CTRL+O — tmux's rotate-window                       [ACTIVE]
+# tmux: prefix C-o = rotate-window, prefix M-o = rotate-window -D. herdr
+# has no rotate action either, so this is another [[keys.command]].
+#
+# What you get: every pane slides one position through the tab's existing
+# cells, upward, the direction tmux's C-o rotates. Panes keep their IDs,
+# processes, and scrollback — only who sits where changes. The script
+# takes --down for tmux's M-o direction if you ever want it on a key too.
+#
+# Why rotating is safe where reshaping (see prefix+space) is not: this
+# moves occupants between cells with pane.swap and never touches the tree.
+# Restructuring is the part herdr refuses — pane.move inside one tab
+# answers same_tab, and layout.apply respawns the panes into a new tab.
+# ─────────────────────────────────────────────────────────────────────
+[[keys.command]]
+key = "prefix+ctrl+o"
+type = "shell"
+command = "$HOME/.config/herdr/rotate-layout"
+
 [theme]
 name = "tokyo-night"
 auto_switch = false

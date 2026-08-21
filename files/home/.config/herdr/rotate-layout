@@ -1,0 +1,128 @@
+#!/usr/bin/env python3
+"""Rotate the panes within a Herdr tab, the way tmux's prefix+Ctrl+o does.
+
+tmux binds prefix+C-o to rotate-window and prefix+M-o to rotate-window -D:
+every pane slides one position through the tab's existing cells while the cells
+themselves stay put. -U, the C-o default, moves each pane to a numerically
+lower position; -D moves each one higher.
+
+Herdr ships no rotate action, so this drives the session socket: layout.export
+reads the split tree and pane.swap exchanges the positions of two panes. Both
+are non-destructive — pane IDs, processes, and scrollback all survive, which is
+what makes rotating safe where reshaping is not. Herdr will not restructure a
+tab in place (pane.move inside one tab answers same_tab, and layout.apply
+respawns the panes into a new tab), so the arrangement of cells stays however
+you built it; only the occupants move.
+
+Rotating by one is n-1 swaps: exchange whoever sits in the first cell with the
+pane in each later cell in turn, which carries one pane the whole way along and
+shifts every other pane back a place. Visiting the later cells last-to-first
+rotates upward, first-to-last rotates downward.
+
+Usage: rotate-layout [--tab TAB_ID] [--down] [--dry-run]
+       (no --tab uses $HERDR_ACTIVE_TAB_ID, which Herdr exports to keybinding
+        commands, and falls back to whichever tab the UI has focused)
+"""
+
+import json
+import os
+import socket
+import sys
+
+
+def default_socket_path():
+    """Locate the session socket the way herdr lays them out on disk.
+
+    Kept in step with balance-layout rather than shared with it. bin/dotf links
+    each file into ~/.config/herdr individually, so a common module would be
+    imported through a symlink and Python would write its __pycache__ back into
+    this repository on every keypress.
+    """
+    explicit = os.environ.get("HERDR_SOCKET_PATH")
+    if explicit:
+        return explicit
+
+    root = os.path.expanduser("~/.config/herdr")
+    session = os.environ.get("HERDR_SESSION")
+    if session and session != "default":
+        return os.path.join(root, "sessions", session, "herdr.sock")
+    return os.path.join(root, "herdr.sock")
+
+
+SOCKET_PATH = default_socket_path()
+
+
+def call(method, params):
+    """Send one request over the Herdr socket and return its result payload."""
+    conn = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    conn.settimeout(5)
+    try:
+        conn.connect(SOCKET_PATH)
+        conn.sendall(
+            (json.dumps({"id": "rotate-layout", "method": method, "params": params}) + "\n").encode()
+        )
+        buffer = b""
+        while b"\n" not in buffer:
+            chunk = conn.recv(65536)
+            if not chunk:
+                raise IOError("herdr closed the connection")
+            buffer += chunk
+    finally:
+        conn.close()
+
+    response = json.loads(buffer.split(b"\n")[0].decode())
+    if "error" in response:
+        raise IOError(response["error"])
+    return response["result"]
+
+
+def pane_order(node):
+    """Return every pane ID in the tab, first cell to last."""
+    if node["type"] == "pane":
+        return [node["pane_id"]]
+    return pane_order(node["first"]) + pane_order(node["second"])
+
+
+def swap_sequence(count, downward):
+    """Yield the cell index pairs whose swaps rotate the tab by one pane."""
+    later_cells = range(1, count) if downward else range(count - 1, 0, -1)
+    for index in later_cells:
+        yield 0, index
+
+
+def main(argv):
+    tab_id = os.environ.get("HERDR_ACTIVE_TAB_ID")
+    downward = False
+    dry_run = False
+    while argv:
+        argument = argv.pop(0)
+        if argument == "--tab":
+            tab_id = argv.pop(0)
+        elif argument == "--down":
+            downward = True
+        elif argument == "--dry-run":
+            dry_run = True
+        else:
+            sys.exit("usage: rotate-layout [--tab TAB_ID] [--down] [--dry-run]")
+
+    layout = call("layout.export", {"tab_id": tab_id} if tab_id else {})["layout"]
+    cells = pane_order(layout["root"])
+    if len(cells) < 2:
+        return
+
+    for first, other in swap_sequence(len(cells), downward):
+        if dry_run:
+            print("swap %s <-> %s" % (cells[first], cells[other]))
+        else:
+            call(
+                "pane.swap",
+                {"source_pane_id": cells[first], "target_pane_id": cells[other]},
+            )
+        cells[first], cells[other] = cells[other], cells[first]
+
+
+if __name__ == "__main__":
+    try:
+        main(sys.argv[1:])
+    except (IOError, OSError, KeyError, ValueError) as failure:
+        sys.exit("rotate-layout: %s" % failure)
