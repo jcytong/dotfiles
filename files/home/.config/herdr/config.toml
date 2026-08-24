@@ -147,7 +147,8 @@ auto_switch = false
 # Was green to match tmux's pane-active-border-style fg=#00ff00; swapped to
 # tokyo-night's native accent so the active-pane border matches the theme.
 accent = "#7aa2f7"
-mouse_capture = false
+# false killed every click in herdr; Shift+drag still selects natively
+mouse_capture = true
 agent_panel_sort = "spaces"
 
 [advanced]
