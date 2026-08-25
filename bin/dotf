@@ -13,8 +13,9 @@ DIR_LINKS=".agents/skills"
 # per-agent root below is generated from it.
 #
 # Only agents with a hardcoded skills path need a mirror here. An agent that can
-# be pointed at a directory (pi, via ~/.pi/settings.json) should read the
-# canonical root directly instead, or it loads every skill once per mirror.
+# be pointed at a directory should read the canonical root directly instead, or
+# it loads every skill once per mirror. pi (0.84+) discovers ~/.agents/skills
+# natively and needs no mirror and no `skills` entry in ~/.pi/agent/settings.json.
 SHARED_SKILL_LINK_TARGETS=".claude/skills .codex/skills"
 
 # Instruction files composed from a shared core plus a per-agent overlay, as

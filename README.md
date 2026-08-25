@@ -36,7 +36,9 @@ files/home/.agents/agent-skills-local/  submodule (personal tier)
 
 Add an agent to `SHARED_SKILL_LINK_TARGETS` in `bin/dotf` only when its skills
 directory is hardcoded. An agent that can be *pointed* at a directory should
-read the canonical root directly instead — pi does this via `~/.pi/settings.json`:
+read the canonical root directly instead. pi (0.84+) discovers `~/.agents/skills`
+natively, so it needs neither a mirror nor a `skills` entry in
+`~/.pi/agent/settings.json`; an older pi can be pointed there explicitly:
 
 ```json
 { "skills": ["~/.agents/skills"] }
