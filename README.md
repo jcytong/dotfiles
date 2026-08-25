@@ -27,7 +27,7 @@ live there once, and each agent gets its own view of the same set.
 
 ```
 files/home/.agents/skills/          canonical store
-files/home/.agents/claude-skills/       submodule (team tier)
+files/home/.agents/agent-skills/        submodule (team tier)
 files/home/.agents/agent-skills-local/  submodule (personal tier)
         │
         ├── ~/.claude/skills/   one symlink per skill   (hardcoded path)
