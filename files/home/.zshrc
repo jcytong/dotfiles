@@ -45,6 +45,34 @@ setopt GLOB_COMPLETE
 bindkey -v
 bindkey '^R' history-incremental-search-backward
 
+# --- vi mode ergonomics (see `bindkey -v` above) ---------------------------
+# Esc stalls 0.4s on zsh's default KEYTIMEOUT of 40; 1 = 10ms. Raise to 20 if
+# Alt-combos or arrows start misfiring over a laggy ssh link.
+KEYTIMEOUT=1
+
+# Mode indicator: block cursor = command mode, beam = insert. Neither
+# xterm-ghostty nor tmux-256color advertises Ss/Se, so emit DECSCUSR directly.
+autoload -Uz add-zsh-hook
+_vi_cursor()      { case $KEYMAP in vicmd) print -n '\e[2 q';; *) print -n '\e[6 q';; esac }
+_vi_cursor_beam() { print -n '\e[6 q' }
+zle -N zle-keymap-select _vi_cursor
+zle -N zle-line-init     _vi_cursor_beam
+add-zsh-hook preexec     _vi_cursor_beam   # don't leak the block cursor into vim
+
+# v in command mode opens the current line in $EDITOR; :wq runs it.
+# Costs zsh's visual-mode; V still gives visual-line.
+autoload -Uz edit-command-line
+zle -N edit-command-line
+bindkey -M vicmd 'v' edit-command-line
+
+# Home/End: tmux-256color sends \e[1~ / \e[4~, which nothing binds. Ghostty's
+# xterm-ghostty sends \eOH / \eOF, already handled. Bind both families.
+for _m in viins vicmd; do
+  bindkey -M $_m '^[[1~' beginning-of-line
+  bindkey -M $_m '^[[4~' end-of-line
+done
+unset _m
+
 # set up variables for development environment
 export EDITOR=vim
 export GIT_EDITOR=vim
