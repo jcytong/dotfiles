@@ -29,7 +29,7 @@ CASE_SENSITIVE="true"
 # Which plugins would you like to load? (plugins can be found in ~/.oh-my-zsh/plugins/*)
 # Custom plugins may be added to ~/.oh-my-zsh/custom/plugins/
 # Example format: plugins=(rails git textmate ruby lighthouse)
-plugins=(git fzf-tab fzf-zsh-plugin)
+plugins=(git fzf-tab fzf-zsh-plugin z)
 
 # fzf-zsh-plugin leaks FZF_PATH as a shell global (only fzf_conf is `local`).
 # On a re-source it then looks for $FZF_PATH/fzf.zsh instead of ~/.fzf.zsh and
