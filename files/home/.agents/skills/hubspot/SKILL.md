@@ -24,11 +24,24 @@ This skill is shareable: it holds no PII and hardcodes no portal.
 **Preflight (run first, every session):**
 
 ```bash
-test -f ~/.hscli/config.yml && command -v hs >/dev/null && test -x ~/.local/bin/hubspot && echo OK || echo MISSING
+test -f ~/.config/hubspot/.env && command -v hs >/dev/null && test -x ~/.local/bin/hubspot && echo OK || echo MISSING
 ```
 
 Anything other than `OK` means stop and fix the missing piece below before any read or
 write.
+
+Both HubSpot credentials live in one file, `~/.config/hubspot/.env` (mode 0600), because
+they do different jobs and you will need both:
+
+```bash
+HUBSPOT_ACCOUNT_ID=1234567
+HUBSPOT_PERSONAL_ACCESS_KEY=...   # reads  — consumed by `hs --use-env`
+HUBSPOT_SERVICE_KEY=...           # writes — Bearer token, direct REST
+```
+
+The `hubspot` wrapper sources this file, and the Python script appends `--use-env` when
+`HUBSPOT_PERSONAL_ACCESS_KEY` is present. If the file is absent the flag is omitted and
+`hs` falls back to its own `~/.hscli/config.yml`, so an unmigrated machine still works.
 
 ### 1. Install the CLI
 
@@ -56,13 +69,30 @@ So the auth model splits:
 
 | Operation | Credential |
 |---|---|
-| Any CRM read, schema read, CMS and developer tooling | PAK, via `hs api` |
-| Creating lists, writing contacts, editing schemas | **Private app token** |
+| Any CRM read, schema read, CMS and developer tooling | PAK, via `hs api --use-env` |
+| Writing objects, lists, or schemas | **Service key** |
 
-For writes, create a private app (Settings → Integrations → Private Apps), grant it
-`crm.lists.read/write`, `crm.objects.contacts.read/write`,
-`crm.schemas.contacts.read/write`, and call the REST API with
-`Authorization: Bearer <token>` directly. `hs api` cannot use a private app token.
+For writes, create a **Service key** (Settings → Integrations → **Service Keys** → Create
+a service key; needs Super Admin or Developer tools access), grant only the scopes the
+job needs — e.g. `crm.objects.deals.read`/`.write`,
+`crm.objects.contacts.read`/`.write`, `crm.schemas.contacts.write` — and call the REST
+API with `Authorization: Bearer <key>` directly. `hs api` cannot use a service key.
+
+Service keys entered public beta in Feb 2026 and are HubSpot's recommended credential for
+data-only integrations; **UI-created private apps are now legacy** for this purpose. Two
+practical wins over a private app: the key is account-level rather than tied to a user
+(so it survives people changing roles), and it can be rotated without rebuilding the
+integration. They cannot do webhook subscriptions or UI extensions — those still require
+a project-based app.
+
+When a write 403s, HubSpot names the exact scopes it wanted in
+`errors[].context.requiredGranularScopes`. Read that list rather than guessing. To probe
+whether a credential can write at all *without touching data*, aim a `PATCH` at an id
+that cannot exist — `403` means the scope is missing, `404` means auth is fine:
+
+```bash
+hs api /crm/v3/objects/deals/999999999999 -X PATCH --data '{"properties":{"dealstage":"x"}}'
+```
 
 A 403 from `hs api` on a write is not a bad key, it is the PAK doing what it is designed
 to do. Do not try to fix it by regenerating.
@@ -92,15 +122,21 @@ cat > ~/.local/bin/hubspot <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 command -v hs >/dev/null || { echo "hubspot: HubSpot CLI not found — npm install -g @hubspot/cli" >&2; exit 1; }
+ENV_FILE="$HOME/.config/hubspot/.env"
+if [ -f "$ENV_FILE" ]; then set -a; source "$ENV_FILE"; set +a; fi
 SCRIPT="$HOME/.agents/skills/hubspot/scripts/hubspot.py"
 [ "$#" -eq 0 ] && exec python3 "$SCRIPT" --help
 case "$1" in
-  hs) shift; exec hs "$@" ;;   # escape hatch: `hubspot hs project upload`
-  *)  exec python3 "$SCRIPT" "$@" ;;
+  hs)   shift; exec hs "$@" ;;   # escape hatch: `hubspot hs project upload`
+  exec) shift; exec "$@" ;;      # escape hatch: `hubspot exec env | grep HUBSPOT`
+  *)    exec python3 "$SCRIPT" "$@" ;;
 esac
 EOF
 chmod +x ~/.local/bin/hubspot
 ```
+
+Sourcing the env file is what makes the consolidated credential store work; without it
+`hs` falls back to `~/.hscli/config.yml` and the service key is never in scope.
 
 `~/.local/bin` must be on `PATH`. Verify with `hubspot whoami`.
 
@@ -137,8 +173,9 @@ All subcommands route through `hs api` and therefore through the PAK. The read-o
 (`whoami`, `search`, `props`, `api` GET, `check-emails`) work as documented. **`import`
 and `list-add` perform writes and will 403 under a PAK**, including the `--dry-run`
 paths' final step; their scan and re-query logic is still correct and useful. To
-actually write, either run them against a portal where the CLI is authed with OAuth
-carrying write scopes, or drive the same endpoints with a private app token.
+actually write, drive the same endpoints with the service key
+(`Authorization: Bearer $HUBSPOT_SERVICE_KEY`), or run them against a portal where the
+CLI is authed with OAuth carrying write scopes.
 
 ### `whoami` — confirm which portal you are pointed at
 

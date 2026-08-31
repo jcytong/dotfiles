@@ -40,6 +40,12 @@ class HsError(RuntimeError):
 def hs_api(endpoint: str, method: str = "GET", data: Any = None,
            account: str | None = None) -> Any:
     cmd = ["hs", "api", endpoint, "--json"]
+    # Prefer the consolidated env file (~/.config/hubspot/.env, loaded by the
+    # `hubspot` wrapper) when it supplies a key; otherwise fall back to the
+    # CLI's own ~/.hscli/config.yml so an unmigrated install still works.
+    # `hs` ignores these vars unless --use-env is passed explicitly.
+    if os.environ.get("HUBSPOT_PERSONAL_ACCESS_KEY") and not account:
+        cmd.append("--use-env")
     if method.upper() != "GET":
         cmd += ["-X", method.upper()]
     if data is not None:
