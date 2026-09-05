@@ -1,0 +1,10 @@
+# Directories delegates (claude/codex) may never run in. One path per line; ~ is expanded.
+~/Documents/obsidian-vaults
+~/Documents/obsidian-docs
+~/Documents/evernote-to-obsidian
+~/.pi
+~/.claude
+~/.codex
+~/.ssh
+~/.config
+~/.gnupg

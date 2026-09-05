@@ -4,3 +4,8 @@ __pycache__
 # Claude rewrites this file whenever /model, /theme or a voice toggle is used.
 # Durable config lives in .claude/settings.shared.json, loaded via --settings.
 files/home/.claude/settings.json
+
+# pi rewrites this file on /model, theme changes and changelog bumps.
+# auth.json, private-terms.txt, models-store.json and sessions/ never enter
+# the repo at all: keys, personal scan terms, caches, transcripts.
+files/home/.pi/agent/settings.json

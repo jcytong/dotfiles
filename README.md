@@ -99,6 +99,21 @@ That writes the hook script and a `SessionStart` entry into the untracked
 `~/.claude/settings.json`. To keep the hook across machines, move that entry
 into `.claude/settings.shared.json`, which is the tracked, durable config.
 
+## pi
+
+`~/.pi/agent/AGENTS.md` is pi's global context file (unlike `~/.pi/AGENTS.md`,
+which pi ignores — see Instruction files above). It carries the chief-of-staff
+role, the T0/T1/T2 data tiers, and the disclosure protocol for the `delegate`
+skill, which lives in `.pi/agent/skills/delegate/` rather than the canonical
+store: it is the cloud-escalation path *for the local model*, meaningless to
+agents that already run in the cloud. `delegate-deny.txt` (directories
+delegates may never run in) is tracked alongside it.
+
+Untracked on purpose, mirroring the `.claude/settings.json` rule:
+`settings.json` (pi rewrites it), `auth.json` (keys), `private-terms.txt`
+(personal scan terms — the file says it never leaves the machine, and it
+doesn't), `models-store.json` and `sessions/` (caches and transcripts).
+
 ## Adding dotfiles
 
 Put files in `files/home/` mirroring your home directory structure:
