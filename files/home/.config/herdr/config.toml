@@ -25,7 +25,7 @@ resize_mode   = "prefix+shift+r"             # swapped with reload_config to fre
 
 detach = "prefix+d"                          # tmux: prefix d  (herdr default was prefix+q)
 
-toggle_sidebar = "prefix+slash"              # the agent panel; herdr default prefix+b is now free
+toggle_sidebar = "prefix+\\"              # the agent panel; herdr default prefix+b is now free
 
 # ── Stage 3 (see note below) — bare-chord pane movement ──────────────
 focus_pane_left  = "ctrl+h"                  # tmux: bind -n C-h select-pane -L
