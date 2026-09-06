@@ -1,16 +1,15 @@
 ---
 name: create-verification-skill
-description: "Generate a project-local verification skill (.claude/skills/verify-<app>/) that drives the real app the way a user does and captures proof — web, CLI/TUI, service, desktop, mobile, library. Use for /create-verification-skill, \"make a verify skill for this repo\", or when a repo has no scripted way to prove behavior. The built-in /run skill and CoS implementer/reviewer delegates pick the generated skill up."
-disable-model-invocation: true
+description: "Create a project-local verification skill and executable checks for a real app. Use when asked to make a verification skill or establish repeatable user-facing verification in a repository."
 ---
 
 # Create a verification skill
 
 A repo needs a scripted way to drive the real app and prove behavior: launch it, exercise a feature the
 way a user would, capture evidence. This skill generates that as a project-local skill,
-`.claude/skills/verify-<app>/`, tailored to the repo. Write the output for the next agent, not for a
-human: it will be read cold, mid-task, by an agent that has never seen the app — a Claude Code session
-here, a Codex reviewer, or a CoS delegate that has only its brief.
+`.agents/skills/verify-<app>/`, tailored to the repo. Write the output for the next agent, not for a
+human: it will be read cold, mid-task, by an agent that has never seen the app. Keep instructions
+independent of a model vendor; discover the executor and available tools in the target environment.
 
 Passing unit tests are a claim about code. A verification run is evidence about the product. Both are
 required before "done"; this skill produces the second.
@@ -26,9 +25,9 @@ Answer these from the codebase and only ask the user what you cannot observe:
   env vars, seed data, auth. A repo `CLAUDE.md`/`AGENTS.md` often already says — read it first.
 - **Drive:** how can an agent interact with it programmatically? Existing harnesses first — Playwright
   or Cypress specs, expect scripts, PTY helpers, curl-able endpoints, a debug port. Only then pick a
-  generic recipe: browser/CDP (the Claude in Chrome tools or Playwright) for web and Electron; a PTY
-  for CLI/TUI — a Herdr pane when `HERDR_ENV=1` (`herdr pane split` / `send-text` / `read`), otherwise
-  `tmux` or `script`; plain HTTP for services.
+  generic recipe: an available browser/CDP driver for web and Electron, a PTY for interactive
+  CLI/TUI, or plain HTTP for services. Use Herdr only when requested and available; otherwise
+  discover a suitable local harness. Noninteractive CLIs generally need only a shell.
 - **Observe:** what evidence can be captured? Screenshots, ARIA snapshots, terminal transcripts,
   response bodies, logs, exit codes, DB rows, files on disk.
 - **Isolate:** can two instances run side by side (ports, data dirs, profiles)? If not, say so in the
@@ -41,14 +40,17 @@ clearly marked as verification scaffolding, and remove it in cleanup.
 
 ## 2. Generate the skill
 
-Write `.claude/skills/verify-<app>/SKILL.md` with YAML frontmatter — `name: verify-<app>` and a
+Write `.agents/skills/verify-<app>/SKILL.md` with YAML frontmatter — `name: verify-<app>` and a
 `description` that names the app, the surface, and when to reach for it; without frontmatter the skill
-never registers — and these sections, each grounded in what the interview found (no placeholders left):
+cannot be discovered — and these sections, each grounded in what the interview found (no placeholders left).
+Keep this directory canonical. If a chosen host needs a different discovery path, use its documented
+adapter or a symlink to this directory; do not maintain duplicate skill bodies. Do not overwrite an
+existing verification skill: inspect it and extend it when it already covers this app.
 
 - **Launch:** the exact command that starts the app for verification and how to tell it is ready (a
   log line, a port answering, a prompt). Include teardown. For a short-lived CLI or TUI there is no
-  server to keep alive: launch means build the binary (or install deps) once, then start each drive in
-  its own isolated PTY.
+  server to keep alive: build the binary (or install deps) once, then run each drive with isolated
+  state. Use a PTY only when the program needs an interactive terminal.
 - **Doctor:** one read-only check that answers "is this instance worth driving?" — process up, right
   version/build, port owned by us, auth valid. An agent runs this first whenever anything looks off.
 - **Drive:** the harness recipe with real selectors and commands from this repo, not examples. Prefer
@@ -65,12 +67,22 @@ never registers — and these sections, each grounded in what the interview foun
 - **Cleanup:** how to tear down instances the run created. Never kill by process name; kill what you
   started (record the PID or pane id at launch). Cleanup removes instances and scratch state, never the
   evidence: proof artifacts survive the teardown, at the location the skill names.
-- **Helpers:** any script the skill ships is executable and its invocation is shown in the skill body.
-  A helper the reader has to reverse-engineer is not a helper. Python helpers run under `uv run`.
+- **Repeatable checks:** reuse existing tests and harnesses. Put stable setup, fixture creation,
+  actions, and objective assertions into executable helpers or existing tests when they otherwise
+  require repeated interpretation. Checks return nonzero on failure; screenshots alone are not
+  assertions. Keep judgment-dependent evaluation in the recipe, with explicit criteria. Integrate
+  unattended checks into existing CI when they fit its environment and task scope; report any
+  missing credentials or infrastructure instead of claiming CI coverage.
+- **Helpers:** scripts are executable, their invocation is shown, and prerequisites are explicit.
+  Python helpers run under `uv run`. Each run uses its own scratch state and can clean up after failure.
+- **Receipt:** record each acceptance criterion, command/action, observed result, exit code where
+  applicable, and artifact path. Identify the checkout and base commit plus the reviewed diff and
+  new-file contents (or a content digest); a commit hash alone does not identify uncommitted work.
+  Mark skipped, blocked, and failed checks separately. New source changes invalidate affected proof.
 
 ## 3. Seed the feature map
 
-Create `.claude/skills/verify-<app>/features/README.md` plus one file per user-facing feature you can
+Create `.agents/skills/verify-<app>/features/README.md` plus one file per user-facing feature you can
 identify (aim for the top 3–5 to start, from routes, commands, menus, or docs). Follow the shape in
 [`references/feature-map-example/`](references/feature-map-example/): a README index and one file per
 feature. Each file answers, from the user's point of view: what the feature is, how to reach it, how
@@ -85,17 +97,22 @@ Run its own instructions end to end once: launch, doctor, drive ONE mapped featu
 map exists so later runs can cover the rest), capture evidence, clean up. After cleanup, confirm the
 evidence still exists at the named location — a cleanup that eats the proof fails this step. Fix what
 fails, and run the generated cleanup after every failed iteration too, so broken attempts do not strand
-processes, panes, and ports. A generated skill that was never executed is a draft, not a deliverable.
+processes, panes, and ports. Honor the caller's attempt/time limits; without an attempt limit, allow
+one repair and recheck, then report blocked with evidence. A generated skill that was never executed
+is a draft, not a deliverable. Mark the other mapped features as unverified until actually exercised.
 
 Leave the changes uncommitted on a branch and propose the commit message; never commit or push.
 
 ## 5. Hand over
 
 Report: the skill path, the surface and harness chosen, the features mapped, the one feature proven and
-where its evidence lives, and anything the interview could not settle. Point out that `/run` will now
-use this skill to launch the app, and that a CoS implementer brief can name it as the "done" check.
+where its evidence lives, executable checks added/reused, CI integration if any, and anything the
+interview could not settle. A coordinator can name the canonical skill path and acceptance criteria
+in implementer and reviewer briefs. Do not assume any host-specific command automatically loads it.
 
 ## Keeping it honest
+
+Use the shared `maintain-verification-skill` workflow for an explicit audit or when drift is found.
 
 The map rots the moment the app changes. When a verification run finds the map wrong, fix the map or
 the harness in the same change — never product code — and say which. A behavior the map describes that
@@ -103,5 +120,5 @@ the app no longer does is either doc drift (fix the map) or a product regression
 paper over it in docs).
 
 ---
-Adapted from `create-verification-skill` in github.com/cursor/plugins (pstack, MIT, © 2026 Lauren Tan; commit 7314f72), rewritten for Claude Code project
-skills, Herdr, uv, and the CoS delegate contract.
+Adapted from `create-verification-skill` in github.com/cursor/plugins (pstack, MIT, © 2026 Lauren Tan;
+commit 7314f72) for vendor-neutral project skills, executable checks, and evidence-based handoffs.
