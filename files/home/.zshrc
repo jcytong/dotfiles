@@ -36,6 +36,18 @@ plugins=(git fzf-tab fzf-zsh-plugin z)
 # fails, since fzf lives in /usr/bin here and ~/.fzf never gets created.
 unset FZF_PATH
 
+# Homebrew keeps formula completions in share/zsh/site-functions, and nothing
+# here runs `brew shellenv`, so that directory never reached fpath — every
+# brew-installed completion (herdr, gh, uv, rg…) was silently absent. Must come
+# before oh-my-zsh, which runs compinit; fpath grows after that are never read.
+typeset -U fpath
+for _brew_prefix in /opt/homebrew /usr/local /home/linuxbrew/.linuxbrew; do
+  [[ -d $_brew_prefix/share/zsh/site-functions ]] &&
+    fpath=($_brew_prefix/share/zsh/site-functions $fpath)
+done
+unset _brew_prefix
+[[ -d $HOME/.docker/completions ]] && fpath=($HOME/.docker/completions $fpath)
+
 source $ZSH/oh-my-zsh.sh
 
 unsetopt SHARE_HISTORY
