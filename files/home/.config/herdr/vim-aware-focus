@@ -1,0 +1,69 @@
+#!/bin/sh
+# Vim-aware pane focus — the `if-shell "$is_vim"` herdr does not have.
+#
+# ~/.tmux.conf binds C-h/j/k/l in the root table and, when the pane is running
+# vim, forwards the chord instead of switching panes:
+#
+#   bind-key -n C-h if-shell "$is_vim" "send-keys C-h" "select-pane -L"
+#
+# herdr cannot bind conditionally, so the condition moves here. config.toml
+# points the same four chords at this script through [[keys.command]]; it asks
+# herdr what is in the pane's foreground and then either forwards the chord or
+# moves focus.
+#
+# This is only the outer half of the round trip. The inner half lives in
+# ~/.vimrc: once vim has the key and the cursor is already against the edge of
+# vim's own splits, vim calls `herdr pane focus` to hand focus back out here.
+# Together they are what vim-tmux-navigator plus is_vim give you under tmux.
+#
+# Usage: vim-aware-focus left|down|up|right
+
+set -u
+
+case "${1:-}" in
+  left)  key=ctrl+h ;;
+  down)  key=ctrl+j ;;
+  up)    key=ctrl+k ;;
+  right) key=ctrl+l ;;
+  *) echo "usage: vim-aware-focus left|down|up|right" >&2; exit 2 ;;
+esac
+direction=$1
+
+herdr=${HERDR_BIN_PATH:-herdr}
+
+# herdr exports the UI-focused pane into keybinding commands, which is the
+# whole reason this can be decided per pane. Nothing documents that variable as
+# guaranteed, though, and silently falling back to an unconditional focus move
+# would break vim exactly the way this script exists to fix — so resolve the
+# focused pane the long way instead. Exactly one pane in the session reports
+# focused, and this costs a second call only when the variable is missing.
+pane=${HERDR_ACTIVE_PANE_ID:-}
+if [ -z "$pane" ]; then
+  pane=$("$herdr" pane list 2>/dev/null | python3 -c '
+import json, sys
+try:
+    panes = json.load(sys.stdin)["result"]["panes"]
+except (ValueError, KeyError):
+    raise SystemExit(0)
+print(next((p["pane_id"] for p in panes if p.get("focused")), ""))
+' 2>/dev/null)
+fi
+
+# Still nothing to target: move focus and accept losing the vim test, rather
+# than swallowing the keypress entirely.
+if [ -z "$pane" ]; then
+  exec "$herdr" pane focus --direction "$direction"
+fi
+
+# tmux matched `ps -o comm=` against (\S+/)?g?(view|n?vim?x?)(diff)? to cover
+# vi, vim, view, gvim, vimx, nvim and the -diff spellings. Same shapes here,
+# matched against the process names herdr reports. herdr lists only foreground
+# processes, so a vim suspended with C-z correctly reads as not running — the
+# case tmux had to exclude by hand with its [^TXZ ] state filter.
+if "$herdr" pane process-info --pane "$pane" 2>/dev/null \
+   | grep -qE '"(name|argv0)":"([^"]*/)?g?(view|n?vim?x?)(diff)?"'
+then
+  exec "$herdr" pane send-keys "$pane" "$key"
+fi
+
+exec "$herdr" pane focus --direction "$direction" --pane "$pane"

@@ -27,11 +27,10 @@ detach = "prefix+d"                          # tmux: prefix d  (herdr default wa
 
 toggle_sidebar = "prefix+\\"              # the agent panel; herdr default prefix+b is now free
 
-# ── Stage 3 (see note below) — bare-chord pane movement ──────────────
-focus_pane_left  = "ctrl+h"                  # tmux: bind -n C-h select-pane -L
-focus_pane_down  = "ctrl+j"                  # tmux: bind -n C-j select-pane -D
-focus_pane_up    = "ctrl+k"                  # tmux: bind -n C-k select-pane -U
-focus_pane_right = "ctrl+l"                  # tmux: bind -n C-l select-pane -R
+# Bare-chord pane movement is Stage 3 and no longer lives here: ctrl+hjkl now
+# goes through [[keys.command]] at the bottom so it can test for vim first.
+# focus_pane_left/down/up/right keep their herdr defaults of prefix+h/j/k/l,
+# which stay unconditional — the escape hatch if the vim test ever misfires.
 
 # Already identical to your tmux — no config needed:
 #   prefix+c  new tab        (tmux: new-window)
@@ -54,24 +53,27 @@ focus_pane_right = "ctrl+l"                  # tmux: bind -n C-l select-pane -R
 
 # ─────────────────────────────────────────────────────────────────────
 # STAGE 3 — where herdr and tmux genuinely diverge        [ACTIVE]
-# The bindings live in [keys] above. This is the note explaining the cost.
-# ─────────────────────────────────────────────────────────────────────
+# The bindings are the four [[keys.command]] blocks at the bottom. This is the
+# note explaining why they are commands rather than plain focus_pane_* keys.
+#
 # Your tmux does vim-AWARE pane switching: C-hjkl checks whether the pane is
 # running vim (is_vim) and forwards the key instead of switching panes.
-# herdr has no is_vim equivalent — it cannot conditionally pass keys through.
-# You use this: vim-tmux-navigator (.vimrc:19) + <C-w> maps (.vimrc:107-111).
+# herdr has no is_vim equivalent and cannot conditionally pass keys through —
+# so the condition moved out of the config and into a script.
+# ~/.config/herdr/vim-aware-focus asks `herdr pane process-info` what is in the
+# focused pane's foreground, then either `pane send-keys` (vim) or `pane focus`
+# (anything else). That is tmux's if-shell, spelled with the socket API.
 #
-# herdr's DEFAULT is prefix+h/j/k/l, which leaves ctrl+hjkl free for vim.
-# That default is why Stage 1 doesn't touch pane focus at all.
+# The return trip is ~/.vimrc: at the edge of vim's own splits vim calls
+# `herdr pane focus` and focus leaves vim for the neighbouring herdr pane.
+# The pair is what vim-tmux-navigator + is_vim give you under tmux — and the
+# vim half is new, because .vimrc's own <C-w> maps used to shadow the plugin.
 #
-# ACTIVATED by request. What this costs you, concretely:
-#   Inside a vim split, ctrl+hjkl no longer reaches vim — herdr eats it first.
-#   Use vim's native <C-w>h / <C-w>j / <C-w>k / <C-w>l instead.
-#   (.vimrc:108-111 map <C-h> -> <C-w>h; the <C-w> form still works untouched.)
-#
-# Safe to bind because tmux is parked: your tmux bound C-hjkl in the ROOT table
-# (bind-key -n), so a running tmux would have intercepted these before herdr.
-# If you ever un-park tmux, comment these four out or the two will fight.
+# Still safe to bind while tmux is parked: your tmux bound C-hjkl in the ROOT
+# table (bind-key -n), so a running tmux would intercept these before herdr.
+# If you ever un-park tmux, comment the four [[keys.command]] blocks out or the
+# two will fight. Nothing else to undo — .vimrc dispatches on $TMUX and hands
+# tmux sessions to vim-tmux-navigator untouched.
 #
 # last_pane = "prefix+ctrl+a"   # tmux: bind C-\ select-pane -l (back-and-forth)
 
@@ -138,6 +140,42 @@ command = "$HOME/.config/herdr/balance-layout"
 key = "prefix+ctrl+o"
 type = "shell"
 command = "$HOME/.config/herdr/rotate-layout"
+
+# ─────────────────────────────────────────────────────────────────────
+# CTRL+H/J/K/L — vim-aware pane movement                     [ACTIVE]
+# tmux: bind-key -n C-h if-shell "$is_vim" "send-keys C-h" "select-pane -L"
+#
+# herdr's focus_pane_* actions are unconditional: bound to ctrl+hjkl they eat
+# the chord before vim ever sees it, which is exactly what made these keys stop
+# working inside a vim split. [[keys.command]] is the way back, because a shell
+# command can look at the pane before deciding what the key means.
+#
+# ~/.config/herdr/vim-aware-focus makes that decision: vim in the pane's
+# foreground gets the chord forwarded verbatim, anything else moves focus.
+# type = "shell" runs it detached, so nothing flashes on screen.
+#
+# prefix+h/j/k/l still move panes unconditionally, including out of a vim that
+# has grabbed the chord. See the Stage 3 note above for the whole round trip.
+# ─────────────────────────────────────────────────────────────────────
+[[keys.command]]
+key = "ctrl+h"
+type = "shell"
+command = "$HOME/.config/herdr/vim-aware-focus left"
+
+[[keys.command]]
+key = "ctrl+j"
+type = "shell"
+command = "$HOME/.config/herdr/vim-aware-focus down"
+
+[[keys.command]]
+key = "ctrl+k"
+type = "shell"
+command = "$HOME/.config/herdr/vim-aware-focus up"
+
+[[keys.command]]
+key = "ctrl+l"
+type = "shell"
+command = "$HOME/.config/herdr/vim-aware-focus right"
 
 [theme]
 name = "tokyo-night"

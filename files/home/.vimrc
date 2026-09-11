@@ -104,11 +104,72 @@ nmap <leader>y <Plug>OSCYankOperator
 vmap <leader>y <Plug>OSCYankVisualSelection
 
 " ── Navigation ──
-" Seamless tmux/vim split navigation (vim-tmux-navigator handles this when loaded)
-nnoremap <C-h> <C-w>h
-nnoremap <C-j> <C-w>j
-nnoremap <C-k> <C-w>k
-nnoremap <C-l> <C-w>l
+" Seamless split movement: C-h/j/k/l walks vim's own splits and keeps going
+" into the multiplexer's panes once the cursor is against the edge of vim.
+"
+" The outer half of that — the multiplexer choosing to hand the chord to vim
+" rather than acting on it — is configured per multiplexer, because the two do
+" it differently:
+"   tmux  — if-shell "$is_vim" in ~/.tmux.conf, and vim-tmux-navigator owns
+"           the edge case, so in a tmux session just delegate to it.
+"   herdr — cannot bind conditionally, so ~/.config/herdr/vim-aware-focus makes
+"           the same decision from a [[keys.command]], and the edge case comes
+"           back here to s:HerdrFocus().
+" Plain vim with neither running keeps the bare <C-w> behaviour these maps
+" always had. Note the delegation is new: these four used to be <C-w> maps that
+" shadowed vim-tmux-navigator's, so vim never handed focus back under tmux.
+" vim-tmux-navigator's plugin/ file is sourced after this vimrc — plugin
+" scripts always are — so its own <C-hjkl> maps would otherwise win over the
+" ones below, as they quietly did before. Suppressing them leaves the
+" :TmuxNavigate* commands in place, which is all the tmux branch needs.
+let g:tmux_navigator_no_mappings = 1
+
+function! s:HerdrFocus(direction) abort
+  let l:herdr = empty($HERDR_BIN_PATH) ? 'herdr' : $HERDR_BIN_PATH
+  let l:cmd = [l:herdr, 'pane', 'focus', '--direction', a:direction,
+        \ '--pane', $HERDR_PANE_ID]
+  " Fire and forget — the only result is a focus change we never read back,
+  " and a synchronous system() would stall the keystroke waiting for it.
+  if exists('*jobstart')
+    call jobstart(l:cmd)
+  elseif exists('*job_start')
+    call job_start(l:cmd)
+  else
+    call system(join(map(copy(l:cmd), 'shellescape(v:val)'), ' '))
+  endif
+endfunction
+
+function! s:NavigateSplit(wincmd, direction) abort
+  if !empty($TMUX) && exists(':TmuxNavigate' . a:direction)
+    execute 'TmuxNavigate' . a:direction
+    return
+  endif
+  let l:origin = winnr()
+  execute 'wincmd' a:wincmd
+  " winnr() unchanged means vim had nowhere left to go in that direction, so
+  " the move belongs to the pane next door rather than to this window.
+  if winnr() == l:origin && !empty($HERDR_ENV) && !empty($HERDR_PANE_ID)
+    call s:HerdrFocus(tolower(a:direction))
+  endif
+endfunction
+
+function! s:NavigatePrevious() abort
+  if !empty($TMUX) && exists(':TmuxNavigatePrevious')
+    TmuxNavigatePrevious
+    return
+  endif
+  wincmd p
+endfunction
+
+nnoremap <silent> <C-h> :call <SID>NavigateSplit('h', 'Left')<CR>
+nnoremap <silent> <C-j> :call <SID>NavigateSplit('j', 'Down')<CR>
+nnoremap <silent> <C-k> :call <SID>NavigateSplit('k', 'Up')<CR>
+nnoremap <silent> <C-l> :call <SID>NavigateSplit('l', 'Right')<CR>
+
+" tmux: bind-key -n C-\ ... select-pane -l. herdr exposes no last-pane target
+" to `pane focus`, so outside tmux this stays inside vim, which is what the
+" plugin's own <C-\> map already did here.
+nnoremap <silent> <C-\> :call <SID>NavigatePrevious()<CR>
 
 " Fix arrow key maps in tmux
 map <Esc>[B <Down>
