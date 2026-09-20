@@ -320,8 +320,32 @@ wt() {
 # Added by Cap
 export PATH="$HOME/.cap/bin:$PATH"
 
-# Ensure fzf-tab owns Tab (must be the LAST thing to bind ^I).
+# zsh-autosuggestions: Homebrew (macOS / Linuxbrew), Debian, or Arch package
+ZSH_AUTOSUGGEST_STRATEGY=(history completion)
+for _f in {/opt/homebrew,/usr/local,/home/linuxbrew/.linuxbrew,/usr}/share/zsh-autosuggestions/zsh-autosuggestions.zsh \
+          /usr/share/zsh/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh; do
+  [[ -f $_f ]] && { source $_f; break }
+done
+unset _f
+
+# Ensure fzf-tab owns Tab (must be the last plugin to bind ^I).
 # Otherwise fzf's own completion.zsh (sourced via ~/.fzf.zsh / fzf-zsh-plugin)
 # rebinds ^I to fzf-completion, which re-enters fzf-tab-complete as a fallback
 # and makes zsh exit on Tab. Re-enabling fzf-tab restores a clean direct binding.
 (( $+functions[enable-fzf-tab] )) && enable-fzf-tab
+
+# Tab accepts a visible autosuggestion, otherwise completes as before. Binds ^I
+# after enable-fzf-tab and calls fzf-tab-complete itself, so fzf-tab still owns
+# completion. Ignored by autosuggestions: its wrapper clears POSTDISPLAY first.
+tab-accept-or-complete() {
+  if [[ -n $POSTDISPLAY ]]; then
+    zle autosuggest-accept
+  elif (( $+widgets[fzf-tab-complete] )); then
+    zle fzf-tab-complete
+  else
+    zle expand-or-complete
+  fi
+}
+zle -N tab-accept-or-complete
+ZSH_AUTOSUGGEST_IGNORE_WIDGETS+=(tab-accept-or-complete)
+bindkey '^I' tab-accept-or-complete
