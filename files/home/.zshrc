@@ -147,10 +147,20 @@ alias python3="uv run python"
 # No-op on macOS or anywhere without a systemd user manager.
 if [[ "$OSTYPE" == linux* ]] && (( $+commands[systemd-run] )); then
   _scoped_agent() {
-    local name="$1" mem="$2" bin="$3"; shift 3
+    local name="$1" mem="$2" bin="$3" want="$3"; shift 3
     [[ -x "$bin" ]] || bin="$(whence -p "$name")"
-    if [[ -n "$XDG_RUNTIME_DIR" && -S "$XDG_RUNTIME_DIR/bus" ]]; then
-      systemd-run --user --scope -q --description="$name interactive session" \
+    if [[ -z "$bin" ]]; then
+      print -ru2 -- "$name: not installed (tried $want and \$PATH)"
+      return 127
+    fi
+    # pam_systemd exports DBUS_SESSION_BUS_ADDRESS but leaves XDG_RUNTIME_DIR
+    # unset over ssh, so derive the runtime dir instead of trusting the var.
+    # Testing the wrong variable here silently dropped every session out of its
+    # cgroup scope, which is the failure this whole wrapper exists to prevent.
+    local xdg="${XDG_RUNTIME_DIR:-/run/user/$UID}"
+    if [[ -S "$xdg/bus" ]]; then
+      XDG_RUNTIME_DIR="$xdg" \
+        systemd-run --user --scope -q --description="$name interactive session" \
         -p MemoryMax="$mem" -p MemorySwapMax=2G -- "$bin" "$@"
     else
       "$bin" "$@"
