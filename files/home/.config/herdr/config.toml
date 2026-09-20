@@ -178,7 +178,7 @@ type = "shell"
 command = "$HOME/.config/herdr/vim-aware-focus right"
 
 [theme]
-name = "tokyo-night"
+name = "terminal"
 auto_switch = false
 
 [ui]
