@@ -321,7 +321,17 @@ wt() {
 export PATH="$HOME/.cap/bin:$PATH"
 
 # zsh-autosuggestions: Homebrew (macOS / Linuxbrew), Debian, or Arch package
-ZSH_AUTOSUGGEST_STRATEGY=(history completion)
+# cd/pushd suggest an existing directory under the typed word first; history
+# alone offers the last matching cd, which often isn't here.
+_zsh_autosuggest_strategy_dir() {
+  emulate -L zsh
+  [[ $1 == (cd|pushd)' '*[^' '] ]] || return
+  local word=${1##* } base=${1##* }
+  [[ $word == '~'* ]] && base=$HOME${word#\~}
+  local -a dirs=( "$base"*(-/N) )
+  (( $#dirs )) && typeset -g suggestion="$1${dirs[1]#$base}/"
+}
+ZSH_AUTOSUGGEST_STRATEGY=(dir history completion)
 for _f in {/opt/homebrew,/usr/local,/home/linuxbrew/.linuxbrew,/usr}/share/zsh-autosuggestions/zsh-autosuggestions.zsh \
           /usr/share/zsh/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh; do
   [[ -f $_f ]] && { source $_f; break }
