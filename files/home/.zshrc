@@ -321,17 +321,40 @@ wt() {
 export PATH="$HOME/.cap/bin:$PATH"
 
 # zsh-autosuggestions: Homebrew (macOS / Linuxbrew), Debian, or Arch package
-# cd/pushd suggest an existing directory under the typed word first; history
-# alone offers the last matching cd, which often isn't here.
+# cd/pushd suggest an existing directory under the typed word first (a subdir
+# of $PWD for a bare `cd`); history alone offers the last matching cd, which
+# often isn't here.
 _zsh_autosuggest_strategy_dir() {
   emulate -L zsh
-  [[ $1 == (cd|pushd)' '*[^' '] ]] || return
-  local word=${1##* } base=${1##* }
+  setopt EXTENDED_GLOB
+  [[ $1 == (cd|pushd)(|' '[^' ']#) ]] || return
+  local word=${1#(cd|pushd)} base
+  word=${word# } base=$word
   [[ $word == '~'* ]] && base=$HOME${word#\~}
   local -a dirs=( "$base"*(-/N) )
-  (( $#dirs )) && typeset -g suggestion="$1${dirs[1]#$base}/"
+  (( $#dirs )) || return
+  [[ $1 == *' ' || -n $word ]] || 1+=' '
+  typeset -g suggestion="$1${dirs[1]#$base}/"
 }
-ZSH_AUTOSUGGEST_STRATEGY=(dir history completion)
+# Stock history strategy, but skipping cd/pushd lines whose directory doesn't
+# exist from here (e.g. the last `cd exports` while already inside exports/).
+_zsh_autosuggest_strategy_history_here() {
+  emulate -L zsh
+  setopt EXTENDED_GLOB
+  local prefix="${1//(#m)[\\*?[\]<>()|^~#]/\\$MATCH}" pattern n line target
+  pattern="$prefix*"
+  [[ -n $ZSH_AUTOSUGGEST_HISTORY_IGNORE ]] && pattern="($pattern)~($ZSH_AUTOSUGGEST_HISTORY_IGNORE)"
+  for n in ${(On)${(k)history[(R)$pattern]}}; do
+    line=$history[$n]
+    if [[ $line == (cd|pushd)' '* ]]; then
+      target=${(Q)line#* }
+      [[ $target == - || -d ${target/#\~/$HOME} ]] || continue
+    fi
+    typeset -g suggestion=$line
+    return
+  done
+}
+ZSH_AUTOSUGGEST_STRATEGY=(dir history_here completion)
 for _f in {/opt/homebrew,/usr/local,/home/linuxbrew/.linuxbrew,/usr}/share/zsh-autosuggestions/zsh-autosuggestions.zsh \
           /usr/share/zsh/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh; do
   [[ -f $_f ]] && { source $_f; break }
