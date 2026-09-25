@@ -366,19 +366,3 @@ unset _f
 # rebinds ^I to fzf-completion, which re-enters fzf-tab-complete as a fallback
 # and makes zsh exit on Tab. Re-enabling fzf-tab restores a clean direct binding.
 (( $+functions[enable-fzf-tab] )) && enable-fzf-tab
-
-# Tab accepts a visible autosuggestion, otherwise completes as before. Binds ^I
-# after enable-fzf-tab and calls fzf-tab-complete itself, so fzf-tab still owns
-# completion. Ignored by autosuggestions: its wrapper clears POSTDISPLAY first.
-tab-accept-or-complete() {
-  if [[ -n $POSTDISPLAY ]]; then
-    zle autosuggest-accept
-  elif (( $+widgets[fzf-tab-complete] )); then
-    zle fzf-tab-complete
-  else
-    zle expand-or-complete
-  fi
-}
-zle -N tab-accept-or-complete
-ZSH_AUTOSUGGEST_IGNORE_WIDGETS+=(tab-accept-or-complete)
-bindkey '^I' tab-accept-or-complete
