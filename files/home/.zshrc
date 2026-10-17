@@ -314,6 +314,23 @@ wt() {
 # Sourced last so it can override anything above
 [[ -f ~/.zshrc.local ]] && source ~/.zshrc.local
 
+# ── nvm: default node on PATH now; nvm.sh (~250ms) loads on first `nvm` call ──
+export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+if [[ -d $NVM_DIR/versions/node ]]; then
+  _nvm_default=$(<$NVM_DIR/alias/default 2>/dev/null)
+  _nvm_bin=( $NVM_DIR/versions/node/v${_nvm_default#v}/bin(N/) $NVM_DIR/versions/node/*/bin(N/nOn) )
+  (( $#_nvm_bin )) && path=( $_nvm_bin[1] $path )
+  unset _nvm_default _nvm_bin
+fi
+nvm() {
+  unset -f nvm
+  local f
+  for f in ${HOMEBREW_PREFIX:-/opt/homebrew}/opt/nvm/nvm.sh $NVM_DIR/nvm.sh; do
+    [[ -s $f ]] && { source $f; break }
+  done
+  nvm "$@"
+}
+
 # bun completions
 [ -s "$HOME/.bun/_bun" ] && source "$HOME/.bun/_bun"
 
