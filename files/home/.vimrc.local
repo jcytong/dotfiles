@@ -14,3 +14,13 @@ map <Leader>l :call RunLastSpec()<CR>
 " ── rainbow (Clojure) ──
 " 0 to start disabled and toggle later with :RainbowToggle
 let g:rainbow_active = 1
+
+" ── Block cursor in normal mode, line in insert, underline in replace ──
+" Vim never requests a cursor shape, so it inherits whatever the outer terminal
+" (Ghostty -> herdr) last set. Ask for a steady block explicitly: on entry,
+" in insert/replace mode, and back in normal mode. Reset on exit.
+let &t_ti .= "\e[2 q"
+let &t_SI = "\e[6 q"
+let &t_SR = "\e[4 q"
+let &t_EI = "\e[2 q"
+let &t_te .= "\e[0 q"
