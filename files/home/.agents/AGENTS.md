@@ -30,8 +30,9 @@
   reads like the title of the issue we resolved. No implementation details discovered along the
   way. No praise adjectives (comprehensive, essential, best practices).
 - No attribution footer — no `🤖 Generated with…`, no `Co-Authored-By: Claude`
-- Echo exactly `Ready to commit: git commit --message "<message>"`, confirm with me, then run
-  that same command
+- On any branch other than `main`/`master`, commit without asking me first
+- On `main`/`master`, echo exactly `Ready to commit: git commit --message "<message>"`, confirm
+  with me, then run that same command
 
 ## Code style
 
