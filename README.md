@@ -17,6 +17,12 @@ The installer is safe to rerun. It only ever replaces symlinks it manages, and
 never removes an existing non-symlink file or directory — an unmanaged file in
 the way is reported and skipped, not clobbered.
 
+If `verify` reports an existing regular config file, move it to a backup before
+running `link` to adopt the repository's version. Existing `~/.agents/skills/`
+directories are supported: managed skills get individual links, and locally
+installed skills stay in place. Old whole-directory `~/.claude/skills` or
+`~/.codex/skills` symlinks into this checkout are migrated automatically.
+
 Two submodules are private. Without access, `git submodule update` fails and the
 skills that link into them stay dangling; everything else still works.
 
@@ -139,3 +145,5 @@ bin/dotf                     Installer: links, composes, verifies
 files/home/.agents/          Vendor-neutral agent config (skills, instructions)
 files/home/                  Everything else, mirroring ~/
 ```
+
+Run `bash tests/dotf.sh` to check the installer using isolated temporary homes.
